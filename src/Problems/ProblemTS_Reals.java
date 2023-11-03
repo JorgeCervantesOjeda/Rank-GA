@@ -1,0 +1,220 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package Problems;
+
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import static java.lang.Math.pow;
+import static java.lang.Math.sqrt;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Random;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import rankga.Gene;
+import rankga.Individual;
+import rankga.Problem;
+
+/**
+ *
+ * @author usuario
+ */
+public class ProblemTS_Reals
+  implements Problem {
+
+  private double[] X;
+  private double[] Y;
+
+  private int n;
+  private double M[][] = {
+    { 0, 4, 1, 2 },
+    { 4, 0, 2, 15 },
+    { 1, 2, 0, 4 },
+    { 2, 15, 4, 0 }
+  };
+  private Random r = new Random();
+
+  private ArrayList<City> cities = new ArrayList<>();
+
+  private int compareCities( City _a,
+                             City _b ) {
+    return (int) Math.signum( _a.getX() - _b.getX() );
+  }
+
+  private void readDatos() {
+
+    BufferedReader csvReader = null;
+    try {
+      Path path = FileSystems.getDefault().getPath( "" ).toAbsolutePath();
+      csvReader = new BufferedReader( new FileReader(
+      path + "\\qatar194.tsp.txt" ) );
+      System.out.println( "Leyendo: " + path + "\\qatar194.tsp.txt" );
+      String row;
+
+      if( null == ( row = csvReader.readLine() ) ) {
+        csvReader.close();
+        throw new IOException();
+      }
+
+      n = Integer.parseInt( row );
+      this.X = new double[ n ];
+      this.Y = new double[ n ];
+
+      while( ( row = csvReader.readLine() ) != null ) {
+        String data[] = row.split( " " );
+        // do something with the data
+        int i = Integer.parseInt( data[ 0 ] ) - 1;
+        double x = Double.parseDouble( data[ 1 ] );
+        double y = Double.parseDouble( data[ 2 ] );
+        X[ i ] = x;
+        Y[ i ] = y;
+      }
+      csvReader.close();
+    } catch( FileNotFoundException ex ) {
+      System.out.println( "------ No existe el archivo -------------" );
+      System.out.println( ex );
+    } catch( IOException ex ) {
+      System.out.println( "------ No se pudo leer del archivo -------------" );
+      System.out.println( ex );
+    } finally {
+      try {
+        csvReader.close();
+      } catch( IOException ex ) {
+        Logger.getLogger( ProblemDistricts.class.getName() ).log( Level.SEVERE,
+                                                                  null,
+                                                                  ex );
+      }
+    }
+  }
+
+  public ProblemTS_Reals() {
+    System.out.println( "Initializing TSP:" );
+
+    this.readDatos();
+
+    this.M = new double[ n ][ n ];
+    for( int i = 0;
+         i < n;
+         i++ ) {
+      for( int j = i;
+           j < n;
+           j++ ) {
+        M[ i ][ j ] = sqrt( pow( X[ i ] - X[ j ],
+                                 2 ) + pow( Y[ i ] - Y[ j ],
+                                            2 ) );
+        if( i == j || r.nextDouble() < 0 ) {
+          M[ i ][ j ] = 1e10;
+        }
+        M[ j ][ i ] = M[ i ][ j ];
+        System.out.print( M[ i ][ j ] + " " );
+      }
+      System.out.println();
+    }
+    for( int i = 0;
+         i < n;
+         i++ ) {
+      cities.add( new City() );
+    }
+  }
+
+  @Override
+  public void adapt( double _bestFitness ) {
+  }
+
+  public double fitness( Gene[] genome,
+                         StringBuilder extraString ) {
+    double sum = 0.0;
+    double sumSqr = 0.0;
+    for( int i = 0;
+         i < n;
+         i++ ) {
+      cities.get( i ).setIndex( i );
+      cities.get( i ).setX( genome[ i ].getDoubleValue() );
+      sum += cities.get( i ).getX();
+      sumSqr += cities.get( i ).getX() * cities.get( i ).getX();
+    }
+    extraString.append( String.format( "%18.17f",
+                                       sum / n ) );
+    extraString.append( " " );
+    extraString.append( String.format( "%18.17f",
+                                       sumSqr / n ) );
+    cities.sort( ( a, b )
+      -> compareCities( a,
+                        b ) );
+
+    int orig = cities.get( n - 1 ).getIndex();
+
+    double cost = 0.0;
+    for( int step = 0;
+         step < n;
+         step++ ) {
+      int dest = cities.get( step ).getIndex();
+      cost += M[ orig ][ dest ];
+      orig = dest;
+    }
+
+    for( int i = 0;
+         i < n;
+         i++ ) {
+      genome[ i ].multiplyDoubleValue( n / sumSqr );
+    }
+    return -cost;
+  }
+
+  @Override
+  public double fitness( Individual _i ) {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public String getProblemName() {
+    return "TSP_Reals" + System.currentTimeMillis();
+  }
+
+  @Override
+  public int getGenomeLength() {
+    return n;
+  }
+
+  @Override
+  public Gene getNewGene( boolean _randomize_p,
+                          Random r ) {
+    return new GeneDoublePrecision( 1.0,
+                                    r );
+  }
+
+  @Override
+  public Gene getNewGene( Gene _gene ) {
+    return new GeneDoublePrecision( (GeneDoublePrecision) _gene );
+  }
+
+  @Override
+  public double getGoalFt() {
+    return 0;
+  }
+
+  @Override
+  public int getDisplayModulus() {
+    return 1;
+  }
+
+  @Override
+  public Individual getNewIndividual( boolean _randomize,
+                                      Random _r ) {
+    return new Individual( this,
+                           _randomize,
+                           _r );
+  }
+
+  @Override
+  public Individual getNewIndividual( Individual individual ) {
+    return new Individual( (Individual) individual );
+  }
+
+}
