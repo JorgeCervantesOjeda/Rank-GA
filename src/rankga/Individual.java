@@ -58,7 +58,7 @@ public class Individual {
     this.extraString = new StringBuilder();
     this.fitness = other.fitness;
     this.rank = -1;
-    this.p = -1.0;
+    this.p = 0.0;
     this.mate = -1;
     this.randomizer = other.randomizer;
   }
@@ -157,12 +157,15 @@ public class Individual {
    */
   public String genomeStr() {
     String s = "";
+    String g;
     for( int i = 0;
          i < genome.length;
          i++ ) {
+      g = String.format( "%02d",
+                         genome[ i ].getIntValue() );
       s = s + ( i % problem.getDisplayModulus() == 0
                 ? " "
-                : "" ) + genome[ i ].toString();
+                : "" ) + g;
     }
     return s;
   }
@@ -178,9 +181,9 @@ public class Individual {
     String s = rank
                + "\t" + String.format( "%18.17f",
                                        p )
-               + "\t" + String.format( "%18.17e",
-                                       fitness )
-               + "\t" + extraString;
+               + " " + String.format( "%18.17e",
+                                      fitness )
+               + " " + extraString;
     return s;
   }
 
@@ -229,14 +232,27 @@ public class Individual {
    *
    * @return The sum of gene values.
    */
-  public double sum() {
+  public double avg() {
     sum = 0.0;
     for( int i = 0;
          i < genome.length;
          i++ ) {
       sum += genome[ i ].getDoubleValue();
     }
-    return sum;
+    return sum / genome.length;
+  }
+
+  public double std() {
+    double avg = avg();
+    double sumDiffSqr = 0;
+    double diff;
+    for( int i = 0;
+         i < genome.length;
+         i++ ) {
+      diff = genome[ i ].getDoubleValue() - avg;
+      sumDiffSqr += diff * diff;
+    }
+    return Math.sqrt( sumDiffSqr / genome.length );
   }
 
 }

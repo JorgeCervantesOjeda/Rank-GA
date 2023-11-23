@@ -20,7 +20,8 @@ public class ProblemPseudoachromaticIndexConnex
   private boolean[][] isColorInVertex;
   private final double weightPairs;
   private final double weightColors;
-  private final double weightSum;
+  private final double weightStd;
+  private final double weightAvg;
 
   /**
    * Constructor for ProblemPseudoachromaticIndexConnex.
@@ -29,19 +30,32 @@ public class ProblemPseudoachromaticIndexConnex
    * @param _numColors    Number of colors to be used.
    * @param _weightPairs  Weight factor for considering pairs of colors.
    * @param _weightColors Weight factor for considering colors.
-   * @param _weightSum    Weight factor for considering the sum of genes.
+   * @param _weightStd    Weight factor for considering the standard deviation
+   *                      of the color histogram values.
+   * @param _weightAvg    Weight factor for considering the average of gene
+   *                      values
    */
   public ProblemPseudoachromaticIndexConnex( int _numVertices,
                                              int _numColors,
                                              double _weightPairs,
                                              double _weightColors,
-                                             double _weightSum ) {
+                                             double _weightStd,
+                                             double _weightAvg ) {
     numVertices = _numVertices;
     numEdges = numVertices * ( numVertices - 1 ) / 2;
     numColors = _numColors;
     weightPairs = _weightPairs;
     weightColors = _weightColors;
-    weightSum = _weightSum;
+    weightStd = _weightStd;
+    weightAvg = _weightAvg;
+    System.out.println( "ProblemPseudoachromaticIndexConnex parameters:" );
+    System.out.println( "numVertices: " + numVertices );
+    System.out.println( "numEdges: " + numEdges );
+    System.out.println( "numColors: " + numColors );
+    System.out.println( "weightPairs: " + weightPairs );
+    System.out.println( "weightColors:" + weightColors );
+    System.out.println( "weightStd: " + weightStd );
+    System.out.println( "weightAvg: " + weightAvg );
   }
 
   @Override
@@ -117,19 +131,23 @@ public class ProblemPseudoachromaticIndexConnex
       }
     }
 
-    individual.appendExtraString(
-      " " + colorCount
-      + "_" + countNotConnectedPairs
-      + "_" + countNotConnectedColor
-      + "_" + individual.sum()
-    );
-
     int colorHistogram[] = new int[ numColors ];
     for( int i = 0;
          i < this.getGenomeLength();
          i++ ) {
       colorHistogram[ individual.getGene( i ).getIntValue() ]++;
     }
+    double std = std( colorHistogram );
+    double avg = avg( individual );
+    individual.appendExtraString(
+      " " + colorCount
+      + "_" + String.format( "%02d",
+                             countNotConnectedPairs )
+      + "_" + String.format( "%02d",
+                             countNotConnectedColor )
+      + "_" + std
+      + "_" + avg
+    );
     individual.appendExtraString( "~" );
     for( int i = 0;
          i < numColors;
@@ -137,8 +155,18 @@ public class ProblemPseudoachromaticIndexConnex
       individual.appendExtraString( "|" + colorHistogram[ i ] );
     }
 
-    return colorCount - countNotConnectedPairs * weightPairs - countNotConnectedColor * weightColors - individual
-      .sum() * weightSum;
+    double fitness = colorCount
+                     - countNotConnectedPairs * weightPairs
+                     - countNotConnectedColor * weightColors
+                     - std * weightStd
+                     - avg * weightAvg;
+    if( colorCount == numColors
+        && countNotConnectedPairs == 0
+        && countNotConnectedColor == 0 ) {
+      return colorCount;
+    }
+    return fitness;
+
   }
 
   @Override
@@ -148,7 +176,7 @@ public class ProblemPseudoachromaticIndexConnex
            + this.numColors + "_"
            + this.weightPairs + "_"
            + this.weightColors + "_"
-           + this.weightSum;
+           + this.weightStd;
   }
 
   @Override
@@ -322,6 +350,33 @@ public class ProblemPseudoachromaticIndexConnex
     return individual.getGene(
       i * ( numVertices - 1 ) + j - ( i + 1 ) * ( i + 2 ) / 2 + i )
       .getIntValue();
+  }
+
+  private double std( int[] arr ) {
+    double sum = 0;
+    for( int i = 0; i < arr.length; i++ ) {
+      sum += arr[ i ];
+    }
+    double avg = sum / arr.length;
+    double sumDiffSqr = 0;
+    double diff;
+    for( int i = 0;
+         i < arr.length;
+         i++ ) {
+      diff = arr[ i ] - avg;
+      sumDiffSqr += diff * diff;
+    }
+    return Math.sqrt( sumDiffSqr / arr.length );
+  }
+
+  private double avg( Individual individual ) {
+    double sum = 0;
+    for( int i = 0; i < this.getGenomeLength(); i++ ) {
+      sum += individual.getGene( i ).getIntValue();
+    }
+    double avg = sum / this.getGenomeLength();
+
+    return avg;
   }
 
 }

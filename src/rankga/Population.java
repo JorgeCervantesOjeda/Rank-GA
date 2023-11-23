@@ -52,12 +52,17 @@ public class Population {
       theIndividuals.add( problem.getNewIndividual( randomize,
                                                     r ) );
     }
-    K = 3;
+    K = 3.0;
     numGen = 0;
-    maxMut = 0.1;
+    maxMut = 2.0 / problem.getGenomeLength();
     exponent = Math.log( problem.getGenomeLength() * maxMut ) / Math.log(
     numIndividuos - 1 );
     avgFtRand = 0;
+    System.out.println( "NumIndividuos = " + numIndividuos );
+    System.out.println( "K = " + K );
+    System.out.println( "maxMut = " + maxMut );
+    System.out.println( "exponent = " + exponent );
+
   }
 
   /**
@@ -79,9 +84,8 @@ public class Population {
       -> {
         try {
           Double aResult = f.get();
-        }
-        catch( InterruptedException |
-               ExecutionException ex ) {
+        } catch( InterruptedException |
+                 ExecutionException ex ) {
           System.out.println( "-----<<< " + ex + ">>>-----" );
         }
       } );
@@ -164,10 +168,12 @@ public class Population {
         extraProbability = numClones - Math.floor( numClones );
         if( this.randomizer.nextDouble() < extraProbability ) {
           clones.add( problem.getNewIndividual( theIndividuals.get( i ) ) );
+        } else if( extraProbability > 0
+                   && i == 0 ) {
+          //System.out.println( "No hubo clon extra del mejor." );
         }
       }
-    }
-    while( clones.size() < theIndividuals.size() );
+    } while( clones.size() < theIndividuals.size() );
 
     theIndividuals = clones;
     this.sort();
@@ -227,8 +233,7 @@ public class Population {
       if( maxMut > 0.1 * 0.98 ) {
         maxMut *= 0.98;
       }
-    }
-    else if( maxMut < 100 / 1.01 ) {
+    } else if( maxMut < 100 / 1.01 ) {
       maxMut *= 1.01;
     }
   }
@@ -245,8 +250,7 @@ public class Population {
       if( exponent < 5 / 1.1 ) {
         exponent *= 1.01;
       }
-    }
-    else if( exponent > 0.1 * 0.9 ) {
+    } else if( exponent > 0.1 * 0.9 ) {
       exponent *= 0.99;
     }
   }
@@ -273,9 +277,8 @@ public class Population {
       }
 
       if( true || i < indexRand ) {
-        r = i / (double) theIndividuals.size();
-      }
-      else {
+        r = i / (double) ( theIndividuals.size() - 1 );
+      } else {
         r = indexRand / (double) theIndividuals.size();
       }
 

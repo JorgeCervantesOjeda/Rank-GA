@@ -44,7 +44,7 @@ import static rankga.ConvertTime.convertMillisToTimeFormat;
  */
 public class RankGA {
 
-  private static final long PATIENCE = 5L * 24L * 60L * 60L * 1000L; // 5 days
+  private static final long PATIENCE = 1L * 24L * 60L * 60L * 1000L; // 24 hours
 
   private static Population population;
   private static Date startTime;
@@ -57,19 +57,20 @@ public class RankGA {
   private static int repetition;
   private static long generation;
   private static long lastGeneration;
+  private static double bestFitness;
+  private static double deltaFt;
 
   public static void main( String[] args ) {
 
     System.out.println( "Patience: " + convertMillisToTimeFormat( PATIENCE ) );
-    System.out.println(
-      "t\tni\trep\tg\ts\tph\td\trank\tp\tfitness\textra\tgenes\tDateTime\tmil" );
 
     // Define the optimization problem
-    Problem problem = new ProblemPseudoachromaticIndexConnex( 12,
-                                                              21,
-                                                              0.1,
+    Problem problem = new ProblemPseudoachromaticIndexConnex( 13,
                                                               1,
-                                                              0.00000000000001 );
+                                                              0.001,
+                                                              1,
+                                                              0.00000001,
+                                                              0.000000000 );
     String problemRunName = problem.getProblemName() + "_" + System
            .currentTimeMillis();
     System.out.println( "Problem: " + problemRunName );
@@ -80,12 +81,12 @@ public class RankGA {
       startTime = new Date();
 
       // Initialize the population
-      population = new Population( 10,
+      population = new Population( problem.getGenomeLength(),
                                    problem,
                                    true,
                                    new Random() );
       population.evaluate();
-      double bestFitness = population.getFittest().getFitness();
+      bestFitness = population.getFittest().getFitness();
       lastBest = problem.getNewIndividual( population.getFittest() );
 
       generation = 1;
@@ -93,6 +94,9 @@ public class RankGA {
       notImproved = new Date();
       lastDisplay = new Date();
       now = new Date();
+
+      System.out.println(
+        "t\tni\trep\tg\ts\tph\td\trank\tp\tfitness\textra\tgenes\tDateTime\tmil" );
 
       // Report the initial state
       report( "S",
@@ -105,12 +109,14 @@ public class RankGA {
         population.recombinate();
         population.evaluate();
 
+        deltaFt = population.getFittest().getFitness()
+                  - bestFitness;
         // Check if there's an improvement in fitness
         if( bestFitness <= population.getFittest().getFitness()
             && lastBest.distanceSqTo( population.getFittest() ) > 0.0 ) {
-          bestFitness = population.getFittest().getFitness();
           report( "R",
                   problemRunName );
+          bestFitness = population.getFittest().getFitness();
           lastBest = problem.getNewIndividual( population.getFittest() );
           notImproved = new Date();
           lastDisplay = new Date();
@@ -122,12 +128,14 @@ public class RankGA {
         population.evaluate();
         population.updateMutationParameters( 0 ); // Hill Side Addition
 
+        deltaFt = population.getFittest().getFitness()
+                  - bestFitness;
         // Check if there's an improvement in fitness
         if( bestFitness <= population.getFittest().getFitness()
             && lastBest.distanceSqTo( population.getFittest() ) > 0.0 ) {
-          bestFitness = population.getFittest().getFitness();
           report( "M",
                   problemRunName );
+          bestFitness = population.getFittest().getFitness();
           lastBest = problem.getNewIndividual( population.getFittest() );
           notImproved = new Date();
           lastDisplay = new Date();
@@ -166,19 +174,20 @@ public class RankGA {
     Date now = new Date();
     String s = "" + convertMillisToTimeFormat(
            now.getTime() - startTime.getTime() )
-               + "\t" + convertMillisToTimeFormat(
+               + " " + convertMillisToTimeFormat(
              now.getTime() - notImproved.getTime() )
-               + "\t" + repetition
-               + "\t" + generation
-               + "\t" + String.format( "%9.7f",
-                                       (float) ( generation ) / ( now.getTime() - startTime
-                                                                 .getTime() ) )
-               + "\t" + phase
-               + "\t" + distance
+               + " " + repetition
+               + " " + generation
+               + " " + String.format( "%9.7f",
+                                      (float) ( generation ) / ( now.getTime() - startTime
+                                                                .getTime() ) )
+               + " " + phase
+               + " " + distance
+               //+ " " + deltaFt
                + "\t" + best
                + "\t" + best.genomeStr()
                + "\t" + now
-               + "\t" + ( now.getTime() - startTime.getTime() ) + "\n";
+               + " " + ( now.getTime() - startTime.getTime() ) + "\n";
     System.out.print( "\r" + s );
     System.out.flush();
     lastGeneration = generation;

@@ -104,7 +104,7 @@ public class ProblemPseudoachromaticIndex
     }
 
     individual.appendExtraString(
-      " " + colorCount + "_" + penalty + "_" + individual.sum() );
+      " " + colorCount + "_" + penalty + "_" + individual.avg() );
     return colorCount - penalty * weight;
   }
 
