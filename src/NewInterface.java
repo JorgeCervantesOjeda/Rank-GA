@@ -9,5 +9,5 @@
  * @author usuario
  */
 public interface NewInterface {
-
+  // prueba
 }
