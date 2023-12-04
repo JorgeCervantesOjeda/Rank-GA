@@ -44,7 +44,7 @@ import static rankga.ConvertTime.convertMillisToTimeFormat;
  */
 public class RankGA {
 
-  private static final long PATIENCE = 1L * 24L * 60L * 60L * 1000L; // 24 hours
+  private static final long PATIENCE = 5L * 24L * 60L * 60L * 1000L; // 5 days
 
   private static Population population;
   private static Date startTime;
@@ -65,12 +65,12 @@ public class RankGA {
     System.out.println( "Patience: " + convertMillisToTimeFormat( PATIENCE ) );
 
     // Define the optimization problem
-    Problem problem = new ProblemPseudoachromaticIndexConnex( 13,
+    Problem problem = new ProblemPseudoachromaticIndexConnex( 25,
                                                               1,
                                                               0.001,
                                                               1,
-                                                              0.00000001,
-                                                              0.000000000 );
+                                                              0.00000000,
+                                                              0.00000000 );
     String problemRunName = problem.getProblemName() + "_" + System
            .currentTimeMillis();
     System.out.println( "Problem: " + problemRunName );
