@@ -10,4 +10,6 @@
  */
 public interface NewInterface {
   // prueba
+  // cambios para probar git reset HEAD
+  // más cambios ...
 }
