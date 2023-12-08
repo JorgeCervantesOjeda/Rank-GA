@@ -56,9 +56,6 @@ public class RankGA {
   private static Individual lastBest;
   private static int repetition;
   private static long generation;
-  private static long lastGeneration;
-  private static double bestFitness;
-  private static double deltaFt;
 
   public static void main( String[] args ) {
 
@@ -69,7 +66,7 @@ public class RankGA {
                                                               1,
                                                               0.001,
                                                               1,
-                                                              0.00000000,
+                                                              0.00000001,
                                                               0.00000000 );
     String problemRunName = problem.getProblemName() + "_" + System
            .currentTimeMillis();
@@ -86,11 +83,9 @@ public class RankGA {
                                    true,
                                    new Random() );
       population.evaluate();
-      bestFitness = population.getFittest().getFitness();
       lastBest = problem.getNewIndividual( population.getFittest() );
 
       generation = 1;
-      lastGeneration = 1;
       notImproved = new Date();
       lastDisplay = new Date();
       now = new Date();
@@ -109,14 +104,11 @@ public class RankGA {
         population.recombinate();
         population.evaluate();
 
-        deltaFt = population.getFittest().getFitness()
-                  - bestFitness;
         // Check if there's an improvement in fitness
-        if( bestFitness <= population.getFittest().getFitness()
+        if( lastBest.getFitness() <= population.getFittest().getFitness()
             && lastBest.distanceSqTo( population.getFittest() ) > 0.0 ) {
           report( "R",
                   problemRunName );
-          bestFitness = population.getFittest().getFitness();
           lastBest = problem.getNewIndividual( population.getFittest() );
           notImproved = new Date();
           lastDisplay = new Date();
@@ -128,14 +120,11 @@ public class RankGA {
         population.evaluate();
         population.updateMutationParameters( 0 ); // Hill Side Addition
 
-        deltaFt = population.getFittest().getFitness()
-                  - bestFitness;
         // Check if there's an improvement in fitness
-        if( bestFitness <= population.getFittest().getFitness()
+        if( lastBest.getFitness() <= population.getFittest().getFitness()
             && lastBest.distanceSqTo( population.getFittest() ) > 0.0 ) {
           report( "M",
                   problemRunName );
-          bestFitness = population.getFittest().getFitness();
           lastBest = problem.getNewIndividual( population.getFittest() );
           notImproved = new Date();
           lastDisplay = new Date();
@@ -158,7 +147,7 @@ public class RankGA {
         }
 
         // Adaptation of parameters
-        problem.adapt( bestFitness );
+        problem.adapt( lastBest.getFitness() );
       } while( ( now.getTime() - notImproved.getTime() ) < PATIENCE
                && population.getFittest().getFitness() < problem.getGoalFt() );
       // Report the final state
@@ -190,7 +179,6 @@ public class RankGA {
                + " " + ( now.getTime() - startTime.getTime() ) + "\n";
     System.out.print( "\r" + s );
     System.out.flush();
-    lastGeneration = generation;
 
     try( PrintWriter out = new PrintWriter(
                      new BufferedWriter(
