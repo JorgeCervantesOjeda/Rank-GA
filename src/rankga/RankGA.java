@@ -62,12 +62,12 @@ public class RankGA {
     System.out.println( "Patience: " + convertMillisToTimeFormat( PATIENCE ) );
 
     // Define the optimization problem
-    Problem problem = new ProblemPseudoachromaticIndexConnex( 25,
+    Problem problem = new ProblemPseudoachromaticIndexConnex( 12,
                                                               1,
-                                                              0.001,
+                                                              0.01,
                                                               1,
-                                                              0.00000001,
-                                                              0.00000000 );
+                                                              0.000001,
+                                                              0.000000001 );
     String problemRunName = problem.getProblemName() + "_" + System
            .currentTimeMillis();
     System.out.println( "Problem: " + problemRunName );
@@ -148,8 +148,9 @@ public class RankGA {
 
         // Adaptation of parameters
         problem.adapt( lastBest.getFitness() );
-      } while( ( now.getTime() - notImproved.getTime() ) < PATIENCE
-               && population.getFittest().getFitness() < problem.getGoalFt() );
+      }
+      while( ( now.getTime() - notImproved.getTime() ) < PATIENCE
+             && population.getFittest().getFitness() < problem.getGoalFt() );
       // Report the final state
       report( "L",
               problemRunName );
@@ -187,7 +188,8 @@ public class RankGA {
                          true ) ) ) ) {
       out.print( s );
 
-    } catch( IOException e ) {
+    }
+    catch( IOException e ) {
       System.out.println( e );
     }
 
@@ -203,7 +205,8 @@ public class RankGA {
           i ).genomeStr() );
       }
 
-    } catch( IOException e ) {
+    }
+    catch( IOException e ) {
       System.out.println( e );
     }
   }

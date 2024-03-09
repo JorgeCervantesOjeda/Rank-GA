@@ -92,8 +92,10 @@ public class ProblemPseudoachromaticIndexConnex
       }
     }
 
-    // Check each color pair for common vertices
+    // Check each color pair and count Pair Connections
     int countNotConnectedPairs = 0;
+    int sumNumPairConnections = 0;
+    int numPairs = 0;
     for( int color_A = 0;
          color_A < numColors - 1;
          color_A++ ) {
@@ -102,21 +104,26 @@ public class ProblemPseudoachromaticIndexConnex
              color_B < numColors;
              color_B++ ) {
           if( isUsedColor[ color_B ] ) {
-            boolean pairConnected = false;
+            numPairs++;
+            int numPairConnections = 0;
             for( int vertex = 0;
-                 vertex < numVertices && !pairConnected;
+                 vertex < numVertices;
                  vertex++ ) {
               if( isColorInVertex[ color_A ][ vertex ] && isColorInVertex[ color_B ][ vertex ] ) {
-                pairConnected = true;
+                numPairConnections++;
               }
             }
-            if( !pairConnected ) {
+            sumNumPairConnections += numPairConnections;
+            if( numPairConnections == 0 ) {
               countNotConnectedPairs++;
             }
           }
         }
       }
     }
+    double avgNumPairConnections = sumNumPairConnections / (double) ( numPairs == 0
+                                                                      ? 1
+                                                                      : numPairs );
 
     // Count the number of disjoint class components
     int countNotConnectedColor = 0;
@@ -147,6 +154,7 @@ public class ProblemPseudoachromaticIndexConnex
                              countNotConnectedColor )
       + "_" + std
       + "_" + avg
+      + "_" + avgNumPairConnections
     );
     individual.appendExtraString( "~" );
     for( int i = 0;
@@ -246,7 +254,8 @@ public class ProblemPseudoachromaticIndexConnex
       if( i < this.getGenomeLength() ) {
         throw new IllegalArgumentException( "Not enough integers in the file." );
       }
-    } catch( Exception ex ) {
+    }
+    catch( Exception ex ) {
       System.out.println( ex );
     }
 
@@ -354,7 +363,9 @@ public class ProblemPseudoachromaticIndexConnex
 
   private double std( int[] arr ) {
     double sum = 0;
-    for( int i = 0; i < arr.length; i++ ) {
+    for( int i = 0;
+         i < arr.length;
+         i++ ) {
       sum += arr[ i ];
     }
     double avg = sum / arr.length;
@@ -371,7 +382,9 @@ public class ProblemPseudoachromaticIndexConnex
 
   private double avg( Individual individual ) {
     double sum = 0;
-    for( int i = 0; i < this.getGenomeLength(); i++ ) {
+    for( int i = 0;
+         i < this.getGenomeLength();
+         i++ ) {
       sum += individual.getGene( i ).getIntValue();
     }
     double avg = sum / this.getGenomeLength();

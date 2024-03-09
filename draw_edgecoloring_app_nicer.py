@@ -6,6 +6,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from tkinter import Tk, IntVar, Checkbutton, Frame, mainloop, Canvas
+import numpy as np
 
 
 def assign_attributes(edge_coloring):
@@ -66,10 +67,11 @@ class GraphRendererApp:
         self.figure.subplots_adjust(right=0.8)
         self.canvas_widget = FigureCanvasTkAgg(self.figure, master=root)
         self.canvas_widget.get_tk_widget().grid(
-            row=0, column=0, sticky="nsew")  # Place canvas on the left
+            row=0, column=0, sticky="nsew"
+        )  # Place canvas on the left
 
         # Adjust the aspect ratio to make the graph circular
-        self.ax.set_aspect('equal', adjustable='box')
+        self.ax.set_aspect("equal", adjustable="box")
 
         self.color_checkboxes = []
 
@@ -80,7 +82,7 @@ class GraphRendererApp:
         self.frame.grid_columnconfigure(0, weight=1)
 
         # Read the number of vertices and color codes from the file
-        with open("edge_coloring_9_13.txt", "r") as file:
+        with open("edge_coloring_12_21.txt", "r") as file:
             # Read the number of vertices
             vertices_line = file.readline().strip()
             self.vertices = list(range(int(vertices_line)))
@@ -92,12 +94,44 @@ class GraphRendererApp:
             for line in file:
                 color_codes_line = line.strip()
                 if color_codes_line:
-                    self.edge_coloring.extend([int(code)
-                                               for code in color_codes_line.split()])
+                    self.edge_coloring.extend(
+                        [int(code) for code in color_codes_line.split()]
+                    )
 
         # Get the unique color codes, sort them, and initialize them as checked
         self.unique_color_codes = sorted(list(set(self.edge_coloring)))
         initial_checked_values = [0] * len(self.unique_color_codes)
+
+        # Get average number of connections between pairs of used colors
+        numPairs=0
+        sumConnections = 0
+        for a, colorA in enumerate(self.unique_color_codes):
+            for b, colorB in enumerate(self.unique_color_codes):
+                if a < b:
+                    index = 0
+                    pairVertices = [set({}),set({})]
+                    for i in range(len(self.vertices)):
+                        for j in range(len(self.vertices)):
+                            if i<j:
+                                color = self.edge_coloring[index]
+                                index = index+1
+                                if a == color:
+                                    pairVertices[0].update({i})
+                                    pairVertices[0].update({j})
+                                if b == color:
+                                    pairVertices[1].update({i})
+                                    pairVertices[1].update({j})
+                    
+                    commonVertices = pairVertices[0].intersection(pairVertices[1])
+                    sumConnections +=len(commonVertices)
+                    numPairs = numPairs+1
+        self.avgNumConnections = sumConnections / numPairs
+
+        # Label to display avgNumConnections
+        self.avg_connections_label = tk.Label(
+            self.frame, text=f"Avg Num Connections: {self.avgNumConnections}"
+        )
+        self.avg_connections_label.grid(row=len(self.unique_color_codes), column=0, sticky="w")
 
         # Create checkboxes for each color code
         num_columns = 2  # Number of columns for checkboxes
@@ -112,16 +146,20 @@ class GraphRendererApp:
                 command=self.update_graph,
             )
             # Place checkboxes in two columns
-            checkbox.grid(row=i // num_columns, column=i %
-                          num_columns, sticky="w")
+            checkbox.grid(row=i // num_columns, column=i % num_columns, sticky="w")
             self.color_checkboxes.append((code, var))
 
         # Create a "Select All" checkbox and set its initial value to 0 (unchecked)
         self.select_all_var = IntVar(value=0)
         select_all_checkbox = Checkbutton(
-            self.frame, text="Select All", variable=self.select_all_var, command=self.toggle_select_all)
+            self.frame,
+            text="Select All",
+            variable=self.select_all_var,
+            command=self.toggle_select_all,
+        )
         select_all_checkbox.grid(
-            row=len(self.unique_color_codes) // num_columns + 1, column=0, sticky="w")
+            row=len(self.unique_color_codes) // num_columns + 1, column=0, sticky="w"
+        )
 
         # Initially, render all color codes
         self.update_graph()
@@ -137,7 +175,9 @@ class GraphRendererApp:
         # Update the graph based on the new checkbox values
         self.update_graph()
 
-    def create_custom_graph_with_colors(self, vertices, edge_coloring, color_codes_to_render):
+    def create_custom_graph_with_colors(
+        self, vertices, edge_coloring, color_codes_to_render
+    ):
         G = nx.Graph()
 
         # Add nodes based on the number of vertices
@@ -162,8 +202,11 @@ class GraphRendererApp:
                         (
                             i,
                             j,
-                            {"color": edge_color, "style": edge_style,
-                                "width": edge_width},
+                            {
+                                "color": edge_color,
+                                "style": edge_style,
+                                "width": edge_width,
+                            },
                         )
                     )
 
