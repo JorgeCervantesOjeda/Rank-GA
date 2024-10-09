@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package Problems;
 
 import java.util.Random;
@@ -11,71 +6,101 @@ import rankga.Individual;
 import rankga.Problem;
 
 /**
+ * ProblemKnapsack - Defines a knapsack problem for use with genetic algorithms.
+ * Implements the Problem interface, providing methods for generating
+ * individuals, evaluating fitness, and setting up the knapsack environment.
  *
- * @author usuario
+ * Author: Jorge Cervantes Affiliation: Universidad Autónoma Metropolitana,
+ * Mexico City
  */
 public class ProblemKnapsack
   implements Problem {
 
-  private long CAPACITY;
-  private int NUM_ITEMS;
-  private int WEIGHT[];
-  private int VALUE[];
+  private final long WEIGHT_CAPACITY; // Weight capacity of the knapsack
+  private final long VOLUME_CAPACITY; // Volume capacity of the knapsack
+  private final int NUM_ITEMS; // Number of items available to put in the knapsack
+  private final int[] WEIGHT; // Array of item weights
+  private final int[] VOLUME; // Array of item volumes
+  private final int[] VALUE; // Array of item values
 
+  /**
+   * Constructor for the ProblemKnapsack class. Initializes the items with
+   * random weights, volumes, and values.
+   */
   public ProblemKnapsack() {
-    CAPACITY = 6000;
-    System.out.println( "Capacity:" + CAPACITY );
+    WEIGHT_CAPACITY = 6000;
+    VOLUME_CAPACITY = 5000;
     NUM_ITEMS = 250;
     WEIGHT = new int[ NUM_ITEMS ];
+    VOLUME = new int[ NUM_ITEMS ];
     VALUE = new int[ NUM_ITEMS ];
+    Random random = new Random();
+
+    // Initialize weights, volumes, and values for each item
+    System.out.println( "Weight Capacity: " + WEIGHT_CAPACITY );
+    System.out.println( "Volume Capacity: " + VOLUME_CAPACITY );
     for( int i = 0;
          i < NUM_ITEMS;
          i++ ) {
-      WEIGHT[ i ] = (int) ( Math.random() * 100 );
-      VALUE[ i ] = (int) ( Math.random() * 100 );
-      System.out.println( i + "\t" + WEIGHT[ i ] + "\t" + VALUE[ i ] );
+      WEIGHT[ i ] = random.nextInt( 100 ) + 1; // Assign random weights between 1 and 100
+      VOLUME[ i ] = random.nextInt( 50 ) + 1; // Assign random volumes between 1 and 50
+      VALUE[ i ] = random.nextInt( 100 ) + 1; // Assign random values between 1 and 100
+      System.out.println(
+        i + "\t" + WEIGHT[ i ] + "\t" + VOLUME[ i ] + "\t" + VALUE[ i ] );
     }
   }
 
   @Override
-  public void adapt( double _bestFitness ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  public void adapt( double bestFitness ) {
+    // No adaptation behavior defined for this problem
   }
 
-  public double fitness( Gene[] genome,
-                         StringBuilder extraString ) {
-    int weight = 0;
-    int value = 0;
+  /**
+   * Calculate the fitness of a given individual.
+   *
+   * @param individual The individual whose fitness is to be calculated.
+   *
+   * @return The calculated fitness value.
+   */
+  @Override
+  public double fitness( Individual individual ) {
+    int totalWeight = 0;
+    int totalVolume = 0;
+    int totalValue = 0;
     int countOnes = 0;
+
+    // Calculate the total weight, volume, and value of items included in the knapsack
     for( int i = 0;
          i < NUM_ITEMS;
          i++ ) {
-      if( genome[ i ].getIntValue() != 0 ) {
+      if( individual.getGene( i ).getIntValue() != 0 ) { // If item is included
         countOnes++;
-        weight += WEIGHT[ i ];
-        value += VALUE[ i ];
+        totalWeight += WEIGHT[ i ];
+        totalVolume += VOLUME[ i ];
+        totalValue += VALUE[ i ];
       }
     }
-    if( weight > CAPACITY ) {
-      return CAPACITY - weight;
-    }
-    extraString
-      .append( countOnes )
-      .append( "\t" )
-      .append( weight )
-      .append( "\t" )
-      .append( value );
-    return value;
-  }
 
-  @Override
-  public double fitness( Individual _i ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    // If the total weight or volume exceeds the respective capacities, penalize the fitness
+    double penalty = 0;
+    if( totalWeight > WEIGHT_CAPACITY ) {
+      penalty += ( totalWeight - WEIGHT_CAPACITY ) * 0.1; // Penalize proportional to excess weight
+    }
+    if( totalVolume > VOLUME_CAPACITY ) {
+      penalty += ( totalVolume - VOLUME_CAPACITY ) * 0.1; // Penalize proportional to excess volume
+    }
+
+    double finalFitness = totalValue - penalty;
+
+    // Append extra information (optional)
+    individual.appendExtraString(
+      countOnes + "\t" + totalWeight + "\t" + totalVolume + "\t" + totalValue + "\tPenalty: " + penalty );
+    return finalFitness; // Return the total value adjusted by penalties as the fitness score
   }
 
   @Override
   public String getProblemName() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return "Knapsack_" + NUM_ITEMS + "_WeightCap" + WEIGHT_CAPACITY + "_VolumeCap" + VOLUME_CAPACITY;
   }
 
   @Override
@@ -84,37 +109,39 @@ public class ProblemKnapsack
   }
 
   @Override
-  public Gene getNewGene( boolean _randomize_p,
+  public Gene getNewGene( boolean randomize,
                           Random r ) {
     return new GeneInteger( 2,
-                            _randomize_p,
-                            r );
+                            randomize,
+                            r ); // A gene can take two values: 0 (not included) or 1 (included)
   }
 
   @Override
-  public Gene getNewGene( Gene _gene_p ) {
-    return new GeneInteger( (GeneInteger) _gene_p );
+  public Gene getNewGene( Gene gene ) {
+    return new GeneInteger( (GeneInteger) gene );
   }
 
   @Override
   public double getGoalFt() {
-    return 20000;
+    return 20000; // Arbitrary goal fitness for demonstration purposes
   }
 
   @Override
   public int getDisplayModulus() {
-    return 5;
+    return 5; // Display every 5 items for visual clarity
   }
 
   @Override
-  public Individual getNewIndividual( boolean _randomize,
-                                      Random _r ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  public Individual getNewIndividual( boolean randomize,
+                                      Random random ) {
+    return new Individual( this,
+                           randomize,
+                           random );
   }
 
   @Override
-  public Individual getNewIndividual( Individual _get ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  public Individual getNewIndividual( Individual another ) {
+    return new Individual( another );
   }
 
 }

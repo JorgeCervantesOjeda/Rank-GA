@@ -3,7 +3,15 @@ package rankga;
 import java.util.Random;
 
 /**
- * Represents an individual in the population.
+ * Individual - Represents an individual in the population used for genetic
+ * algorithms.
+ *
+ * This class provides methods for creating individuals, manipulating genomes,
+ * and evaluating fitness. Each individual is composed of an array of genes,
+ * which can mutate and recombine.
+ *
+ * Author: Jorge Cervantes Affiliation: Universidad Autónoma Metropolitana,
+ * Mexico City
  */
 public class Individual {
 
@@ -12,10 +20,9 @@ public class Individual {
   private StringBuilder extraString; // Extra information string for this individual.
   private double fitness; // The fitness value of this individual.
   private int rank; // The rank of this individual in the population.
-  protected double p; // Mutation probability for this individual.
-  private int mate; // Mate (partner) rank for recombination.
+  protected double mutationProbability; // Mutation probability for this individual.
+  private int mateRank; // Mate (partner) rank for recombination.
   protected Random randomizer; // Random number generator for randomization.
-  protected double sum; // Sum of gene values (used in some strategies).
 
   /**
    * Create a new individual with a random or specified genome.
@@ -23,21 +30,16 @@ public class Individual {
    * @param problem   The problem associated with this individual.
    * @param randomize If true, create a random genome. Otherwise, use the
    *                  default values.
-   * @param r         The random number generator.
+   * @param random    The random number generator.
    */
   public Individual( Problem problem,
                      boolean randomize,
-                     Random r ) {
+                     Random random ) {
     this.problem = problem;
-    genome = new Gene[ problem.getGenomeLength() ];
-
-    for( int i = 0;
-         i < genome.length;
-         i++ ) {
-      genome[ i ] = problem.getNewGene( randomize,
-                                        r );
-    }
-    this.randomizer = r;
+    this.randomizer = random;
+    this.genome = new Gene[ problem.getGenomeLength() ];
+    this.extraString = new StringBuilder();
+    initializeGenome( randomize );
   }
 
   /**
@@ -47,20 +49,41 @@ public class Individual {
    */
   public Individual( Individual other ) {
     this.problem = other.problem;
-    genome = new Gene[ problem.getGenomeLength() ];
+    this.genome = new Gene[ problem.getGenomeLength() ];
+    this.randomizer = other.randomizer;
+    this.extraString = new StringBuilder();
+    this.fitness = other.fitness;
+    this.rank = -1;
+    this.mutationProbability = 0.0;
+    this.mateRank = -1;
+    copyGenome( other );
+  }
 
+  /**
+   * Initialize the genome with either random values or default values.
+   *
+   * @param randomize Whether to randomize the genome.
+   */
+  private void initializeGenome( boolean randomize ) {
+    for( int i = 0;
+         i < genome.length;
+         i++ ) {
+      genome[ i ] = problem.getNewGene( randomize,
+                                        randomizer );
+    }
+  }
+
+  /**
+   * Copy the genome from another individual.
+   *
+   * @param other The individual to copy the genome from.
+   */
+  private void copyGenome( Individual other ) {
     for( int i = 0;
          i < genome.length;
          i++ ) {
       genome[ i ] = problem.getNewGene( other.getGene( i ) );
     }
-
-    this.extraString = new StringBuilder();
-    this.fitness = other.fitness;
-    this.rank = -1;
-    this.p = 0.0;
-    this.mate = -1;
-    this.randomizer = other.randomizer;
   }
 
   /**
@@ -84,12 +107,12 @@ public class Individual {
   /**
    * Set a gene at a specific index in the genome.
    *
-   * @param i The index.
-   * @param g The gene to set.
+   * @param index The index.
+   * @param gene  The gene to set.
    */
-  public void setGene( int i,
-                       Gene g ) {
-    this.genome[ i ] = g;
+  public void setGene( int index,
+                       Gene gene ) {
+    this.genome[ index ] = gene;
   }
 
   /**
@@ -99,6 +122,7 @@ public class Individual {
    * @return The updated fitness value.
    */
   public double updateFitness() {
+    this.setExtraString( new StringBuilder( "" ) );
     this.fitness = problem.fitness( this );
     return this.fitness;
   }
@@ -118,11 +142,10 @@ public class Individual {
    * @param probability The mutation probability.
    */
   public void mutate( double probability ) {
-    this.p = probability;
-    for( int i = 0;
-         i < genome.length;
-         i++ ) {
-      genome[ i ].mutate( probability );
+    this.mutationProbability = probability;
+    for( Gene gene
+         : genome ) {
+      gene.mutate( probability );
     }
   }
 
@@ -130,22 +153,21 @@ public class Individual {
    * Recombine genes with another individual. Genes are swapped randomly based
    * on a 50% chance.
    *
-   * @param that The other individual to recombine with.
+   * @param partner The other individual to recombine with.
    */
-  public void recombinate( Individual that ) {
-    Gene geneA, geneB;
-    this.mate = that.rank;
-    that.mate = this.rank;
+  public void recombinate( Individual partner ) {
+    this.mateRank = partner.rank;
+    partner.mateRank = this.rank;
+
     for( int i = 0;
          i < genome.length;
          i++ ) {
       if( randomizer.nextDouble() < 0.5 ) {
-        geneA = this.getGene( i );
-        geneB = that.getGene( i );
+        Gene tempGene = this.getGene( i );
         this.setGene( i,
-                      geneB );
-        that.setGene( i,
-                      geneA );
+                      partner.getGene( i ) );
+        partner.setGene( i,
+                         tempGene );
       }
     }
   }
@@ -156,18 +178,17 @@ public class Individual {
    * @return The genome as a formatted string.
    */
   public String genomeStr() {
-    String s = "";
-    String g;
+    StringBuilder genomeString = new StringBuilder();
     for( int i = 0;
          i < genome.length;
          i++ ) {
-      g = String.format( "%02d",
-                         genome[ i ].getIntValue() );
-      s = s + ( i % problem.getDisplayModulus() == 0
-                ? " "
-                : "" ) + g;
+      String geneStr = String.format( "%01d",
+                                      genome[ i ].getIntValue() );
+      genomeString.append( ( i % problem.getDisplayModulus() == 0
+                             ? " "
+                             : "" ) + geneStr );
     }
-    return s;
+    return genomeString.toString();
   }
 
   /**
@@ -178,24 +199,22 @@ public class Individual {
    */
   @Override
   public String toString() {
-    String s = rank
-               + "\t" + String.format( "%18.17f",
-                                       p )
-               + " " + String.format( "%18.17e",
-                                      fitness )
-               + " " + extraString;
-    return s;
+    return String.format( "%d\t%18.17f %18.17e %s",
+                          rank,
+                          mutationProbability,
+                          fitness,
+                          extraString );
   }
 
   /**
    * Get a gene at a specific index in the genome.
    *
-   * @param i The index of the gene to retrieve.
+   * @param index The index of the gene to retrieve.
    *
    * @return The gene at the specified index.
    */
-  public Gene getGene( int i ) {
-    return this.genome[ i ];
+  public Gene getGene( int index ) {
+    return this.genome[ index ];
   }
 
   /**
@@ -208,12 +227,11 @@ public class Individual {
    */
   public double distanceSqTo( Individual other ) {
     double sumSq = 0;
-    double d;
     for( int i = 0;
          i < genome.length;
          i++ ) {
-      d = genome[ i ].distanceTo( other.genome[ i ] );
-      sumSq += d * d;
+      double distance = genome[ i ].distanceTo( other.genome[ i ] );
+      sumSq += distance * distance;
     }
     return sumSq;
   }
@@ -221,35 +239,37 @@ public class Individual {
   /**
    * Set the rank of this individual.
    *
-   * @param i The rank to set.
+   * @param rank The rank to set.
    */
-  protected void setRank( int i ) {
-    this.rank = i;
+  protected void setRank( int rank ) {
+    this.rank = rank;
   }
 
   /**
-   * Calculate the sum of gene values for this individual.
+   * Calculate the average value of the genes in this individual's genome.
    *
-   * @return The sum of gene values.
+   * @return The average value of the genes.
    */
   public double avg() {
-    sum = 0.0;
-    for( int i = 0;
-         i < genome.length;
-         i++ ) {
-      sum += genome[ i ].getDoubleValue();
+    double sum = 0.0;
+    for( Gene gene
+         : genome ) {
+      sum += gene.getDoubleValue();
     }
     return sum / genome.length;
   }
 
+  /**
+   * Calculate the standard deviation of gene values for this individual.
+   *
+   * @return The standard deviation of gene values.
+   */
   public double std() {
     double avg = avg();
     double sumDiffSqr = 0;
-    double diff;
-    for( int i = 0;
-         i < genome.length;
-         i++ ) {
-      diff = genome[ i ].getDoubleValue() - avg;
+    for( Gene gene
+         : genome ) {
+      double diff = gene.getDoubleValue() - avg;
       sumDiffSqr += diff * diff;
     }
     return Math.sqrt( sumDiffSqr / genome.length );

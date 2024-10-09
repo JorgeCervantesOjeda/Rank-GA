@@ -1,12 +1,7 @@
 package rankga;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 /**
  * Population - Class Representing a Population of Individuals
@@ -23,11 +18,8 @@ public class Population {
 
   private ArrayList<Individual> theIndividuals;
   private final double K; // Selective pressure
-  private double masApto;
-  private int numGen;
-  private final double avgFtRand;
-  private double exponent;
-  private double maxMut;
+  private final double exponent;
+  private final double maxMut;
   private final Problem problem;
   private final Random randomizer;
 
@@ -53,54 +45,22 @@ public class Population {
                                                     r ) );
     }
     K = 3.0;
-    numGen = 0;
-    maxMut = 2.0 / problem.getGenomeLength();
+    maxMut = 0.1;
     exponent = Math.log( problem.getGenomeLength() * maxMut ) / Math.log(
     numIndividuos - 1 );
-    avgFtRand = 0;
     System.out.println( "NumIndividuos = " + numIndividuos );
     System.out.println( "K = " + K );
     System.out.println( "maxMut = " + maxMut );
     System.out.println( "exponent = " + exponent );
-
-  }
-
-  /**
-   * Evaluate the fitness of individuals in the population in parallel using
-   * multi-threading.
-   */
-  void evaluateParallel() {
-    final int nThreads = theIndividuals.size();
-    final ExecutorService executor = Executors.newFixedThreadPool( 2 );
-    final List<Future<Double>> futures = new ArrayList<>();
-
-    for( Individual individual
-         : theIndividuals ) {
-      futures.add( executor.submit( ()
-        -> individual.updateFitness() ) );
-    }
-
-    futures.forEach( ( Future<Double> f )
-      -> {
-        try {
-          Double aResult = f.get();
-        } catch( InterruptedException |
-                 ExecutionException ex ) {
-          System.out.println( "-----<<< " + ex + ">>>-----" );
-        }
-      } );
-
-    executor.shutdown();
   }
 
   /**
    * Evaluate the fitness of individuals in the population sequentially.
    */
   public void evaluate() {
-    for( int i = 0;
-         i < theIndividuals.size();
-         i++ ) {
-      theIndividuals.get( i ).updateFitness();
+    for( Individual individual
+         : theIndividuals ) {
+      individual.updateFitness();
     }
     this.sort();
   }
@@ -125,13 +85,8 @@ public class Population {
    */
   private int compareIndividuals( Individual a,
                                   Individual b ) {
-    if( a.getFitness() > b.getFitness() ) {
-      return -1;
-    }
-    if( a.getFitness() < b.getFitness() ) {
-      return 1;
-    }
-    return 0;
+    return Double.compare( b.getFitness(),
+                           a.getFitness() );
   }
 
   /**
@@ -140,43 +95,50 @@ public class Population {
    */
   public void select() {
     double numClones;
-    double r;
     ArrayList<Individual> clones = new ArrayList<>();
+    int[] totalClones = new int[ theIndividuals.size() ];
+    int totalCloneCount = 0;
 
+    // First phase: Calculate the base number of clones for each individual
     for( int i = 0;
          i < theIndividuals.size();
          i++ ) {
-      r = i / (double) theIndividuals.size();
+      double r = i / (double) theIndividuals.size();
       numClones = K * Math.pow( 1 - r,
                                 K - 1 );
+      totalClones[ i ] = (int) Math.floor( numClones );
+      totalCloneCount += totalClones[ i ];
+    }
 
+    // Second phase: Calculate the extra clones based on the fractional part
+    while( totalCloneCount < theIndividuals.size() ) {
+      for( int i = 0;
+           i < theIndividuals.size() && totalCloneCount < theIndividuals.size();
+           i++ ) {
+        double r = i / (double) theIndividuals.size();
+        numClones = K * Math.pow( 1 - r,
+                                  K - 1 );
+        double extraProbability = numClones - Math.floor( numClones );
+
+        if( this.randomizer.nextDouble() < extraProbability ) {
+          totalClones[ i ]++;
+          totalCloneCount++;
+        }
+      }
+    }
+
+    // Generate all the clones based on the calculated totalClones array
+    for( int i = 0;
+         i < theIndividuals.size();
+         i++ ) {
       for( int j = 0;
-           j < Math.floor( numClones );
+           j < totalClones[ i ];
            j++ ) {
         clones.add( problem.getNewIndividual( theIndividuals.get( i ) ) );
       }
     }
 
-    double extraProbability;
-    do {
-      for( int i = 0;
-           i < theIndividuals.size() && clones.size() < theIndividuals.size();
-           i++ ) {
-        r = i / (double) theIndividuals.size();
-        numClones = K * Math.pow( 1 - r,
-                                  K - 1 );
-        extraProbability = numClones - Math.floor( numClones );
-        if( this.randomizer.nextDouble() < extraProbability ) {
-          clones.add( problem.getNewIndividual( theIndividuals.get( i ) ) );
-        } else if( extraProbability > 0
-                   && i == 0 ) {
-          //System.out.println( "No hubo clon extra del mejor." );
-        }
-      }
-    } while( clones.size() < theIndividuals.size() );
-
     theIndividuals = clones;
-    this.sort();
   }
 
   /**
@@ -184,106 +146,40 @@ public class Population {
    * recombined to create new individuals.
    */
   public void recombinate() {
+    // Set the rank for each individual (used for reporting purposes)
     for( int i = 0;
          i < theIndividuals.size();
          i++ ) {
       theIndividuals.get( i ).setRank( i );
     }
 
+    // Recombination is done in pairs
     for( int i = 0;
          i < theIndividuals.size() - 1;
-         i = i + 2 ) {
+         i += 2 ) {
       theIndividuals.get( i ).recombinate( theIndividuals.get( i + 1 ) );
     }
   }
 
   /**
-   * Update mutation parameters based on various strategies.
-   *
-   * @param a The strategy index: -1 for random search, 0 for Rank GA, 1 for HS
-   *          Rank GA by exponent, 2 for HS Rank GA by maxMut.
-   */
-  public void updateMutationParameters( int a ) {
-    numGen++;
-
-    switch( a ) {
-      case -1: // Random search
-        maxMut = theIndividuals.size();
-        break;
-      case 0: // Rank GA
-        break;
-      case 1: // HS Rank GA by exponent
-        updateMutExponent();
-        break;
-      case 2: // HS Rank GA by maxMut
-        updateMaxMut();
-        break;
-    }
-  }
-
-  /**
-   * Update the maximum mutation parameter based on population fitness.
-   */
-  private void updateMaxMut() {
-    double popFraction = 0.7;
-    double baseFt = theIndividuals.get(
-           (int) ( theIndividuals.size() * popFraction ) - 1 ).getFitness();
-
-    if( baseFt <= avgFtRand ) {
-      if( maxMut > 0.1 * 0.98 ) {
-        maxMut *= 0.98;
-      }
-    } else if( maxMut < 100 / 1.01 ) {
-      maxMut *= 1.01;
-    }
-  }
-
-  /**
-   * Update the mutation exponent parameter based on population fitness.
-   */
-  private void updateMutExponent() {
-    double popFraction = 0.7;
-    double baseFt = theIndividuals.get(
-           (int) ( theIndividuals.size() * popFraction ) - 1 ).getFitness();
-
-    if( baseFt <= avgFtRand ) {
-      if( exponent < 5 / 1.1 ) {
-        exponent *= 1.01;
-      }
-    } else if( exponent > 0.1 * 0.9 ) {
-      exponent *= 0.99;
-    }
-  }
-
-// (Other methods are explained in the code with their corresponding comments)
-  /**
    * Mutate the individuals in the population based on their rank and mutation
    * parameters.
    */
   public void mutate() {
+    // Set the rank for each individual (used for reporting purposes)
     for( int i = 0;
          i < theIndividuals.size();
          i++ ) {
       theIndividuals.get( i ).setRank( i );
     }
-    double r;
-    int indexRand = theIndividuals.size();
 
+    // Apply mutation based on the individual's rank
     for( int i = 0;
          i < theIndividuals.size();
          i++ ) {
-      if( i > 0 && i < indexRand && theIndividuals.get( i ).getFitness() < avgFtRand ) {
-        indexRand = i;
-      }
-
-      if( true || i < indexRand ) {
-        r = i / (double) ( theIndividuals.size() - 1 );
-      } else {
-        r = indexRand / (double) theIndividuals.size();
-      }
-
-      theIndividuals.get( i ).mutate( 0.0 + maxMut * Math.pow( r,
-                                                               exponent ) );
+      double r = i / (double) theIndividuals.size();
+      theIndividuals.get( i ).mutate( maxMut * Math.pow( r,
+                                                         exponent ) );
     }
   }
 
@@ -304,26 +200,16 @@ public class Population {
    */
   @Override
   public String toString() {
-    String s = "e:" + this.exponent + "\tm:" + this.maxMut + "\tafr:" + this.avgFtRand + "\n";
+    StringBuilder s = new StringBuilder(
+                  "e:" + this.exponent + "\tm:" + this.maxMut + "\n" );
 
     for( int i = theIndividuals.size() - 1;
          i >= 0;
          i-- ) {
-      s = s + i + "\t" + theIndividuals.get( i ) + "\n";
+      s.append( i ).append( "\t" ).append( theIndividuals.get( i ) ).append(
+        "\n" );
     }
-    return s;
-  }
-
-  /**
-   * Generate a random individual and calculate its fitness for parameter
-   * updates.
-   *
-   * @return The fitness of a random individual.
-   */
-  private double ftRand() {
-    Individual ind = problem.getNewIndividual( true,
-                                               randomizer );
-    return ind.updateFitness();
+    return s.toString();
   }
 
   /**
@@ -342,15 +228,6 @@ public class Population {
    */
   public double getMaxMutation() {
     return maxMut;
-  }
-
-  /**
-   * Get the average random fitness value.
-   *
-   * @return The average random fitness value.
-   */
-  public double getAvgFtRand() {
-    return this.avgFtRand;
   }
 
   /**

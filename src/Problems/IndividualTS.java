@@ -30,13 +30,12 @@ public class IndividualTS
 
   @Override
   public void mutate( double p ) {
-    super.p = p;
 
     for( int i = 0;
          i < genome.length;
          i++ ) {
       GeneTS g = ( (GeneTS) ( this.genome[ i ] ) );
-      g.mutate( super.p,
+      g.mutate( p,
                 i,
                 this.genome );
     }

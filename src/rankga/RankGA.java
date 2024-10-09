@@ -1,6 +1,6 @@
 package rankga;
 
-import Problems.ProblemPseudoachromaticIndexConnex;
+import Problems.*;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -18,71 +18,49 @@ import static rankga.ConvertTime.convertMillisToTimeFormat;
  * individuals over generations to find solutions that optimize a given fitness
  * function.
  *
- * The key components of this program include: - Population: Representing a
- * population of individuals. - Problem: Describing the optimization problem to
- * be solved. - Selection, Recombination, and Mutation: Operators for evolving
- * the population.
- *
- * The program follows a generational model where each generation of individuals
- * is evolved using these operators.
- *
  * Key Features: - Patience for terminating the algorithm after a specified
  * time. - Logging and reporting of progress, fitness values, and solution data.
  *
  * Usage: To use this program, you need to define a specific problem by creating
- * an instance of a class that implements the Problem interface. Then, you can
- * customize the parameters and run the algorithm.
+ * an instance of a class that implements the Problem interface. Then, customize
+ * the parameters and run the algorithm.
  *
  * Author: Jorge Cervantes Affiliation: Universidad Autónoma Metropolitana,
  * Mexico City
- *
- * Note: The code can be further improved and modularized for different problem
- * domains.
  *
  * @see Problem
  * @see Population
  */
 public class RankGA {
 
-  private static final long PATIENCE = 5L * 24L * 60L * 60L * 1000L; // 5 days
+  // Maximum time without improvement before the algorithm stops (in milliseconds).
+  private static final long PATIENCE = 60L * 1000L;
 
-  private static Population population;
-  private static Date startTime;
-  private static final Date runTime = new Date();
-  private static final Date tryTime = new Date();
-  private static Date notImproved = new Date();
-  private static Date lastDisplay = new Date();
-  private static Date now;
-  private static Individual lastBest;
-  private static int repetition;
-  private static long generation;
+  static protected Population population;
+  static protected Date startTime;
+  static protected final Date runTime = new Date();
+  static protected final Date tryTime = new Date();
+  static protected Date notImproved = new Date();
+  static protected Date lastDisplay = new Date();
+  static protected Date now;
+  static protected Individual lastBest;
+  static protected int repetition;
+  static protected long generation;
 
   public static void main( String[] args ) {
+    // Define the problem to be optimized
+    Problem problem = new ProblemNK();
+    String problemRunName = problem.getProblemName() + "_" + System.currentTimeMillis();
 
     System.out.println( "Patience: " + convertMillisToTimeFormat( PATIENCE ) );
-
-    // Define the optimization problem
-    Problem problem = new ProblemPseudoachromaticIndexConnex( 12,
-                                                              1,
-                                                              0.01,
-                                                              1,
-                                                              0.000001,
-                                                              0.000000001 );
-    String problemRunName = problem.getProblemName() + "_" + System
-           .currentTimeMillis();
     System.out.println( "Problem: " + problemRunName );
 
+    // Loop for multiple repetitions to validate robustness
     for( repetition = 0;
-         repetition < 100;
+         repetition < 10;
          repetition++ ) {
       startTime = new Date();
-
-      // Initialize the population
-      population = new Population( problem.getGenomeLength(),
-                                   problem,
-                                   true,
-                                   new Random() );
-      population.evaluate();
+      initializePopulation( problem );
       lastBest = problem.getNewIndividual( population.getFittest() );
 
       generation = 1;
@@ -90,121 +68,146 @@ public class RankGA {
       lastDisplay = new Date();
       now = new Date();
 
+      // Log headers
       System.out.println(
         "t\tni\trep\tg\ts\tph\td\trank\tp\tfitness\textra\tgenes\tDateTime\tmil" );
 
-      // Report the initial state
       report( "S",
               problemRunName );
 
+      // Main genetic algorithm loop
       do {
-        // Selection phase
-        population.select();
-        // Recombination phase
-        population.recombinate();
-        population.evaluate();
-
-        // Check if there's an improvement in fitness
-        if( lastBest.getFitness() <= population.getFittest().getFitness()
-            && lastBest.distanceSqTo( population.getFittest() ) > 0.0 ) {
-          report( "R",
-                  problemRunName );
-          lastBest = problem.getNewIndividual( population.getFittest() );
-          notImproved = new Date();
-          lastDisplay = new Date();
-        }
-        generation++;
-
-        // Mutation phase
-        population.mutate();
-        population.evaluate();
-        population.updateMutationParameters( 0 ); // Hill Side Addition
-
-        // Check if there's an improvement in fitness
-        if( lastBest.getFitness() <= population.getFittest().getFitness()
-            && lastBest.distanceSqTo( population.getFittest() ) > 0.0 ) {
-          report( "M",
-                  problemRunName );
-          lastBest = problem.getNewIndividual( population.getFittest() );
-          notImproved = new Date();
-          lastDisplay = new Date();
-        }
-        generation++;
+        evolvePopulation( problemRunName,
+                          problem );
         now = new Date();
 
-        // Display progress
-        if( ( now.getTime() - lastDisplay.getTime() ) > PATIENCE / 10 ) {
-          lastDisplay = new Date();
-          runTime.setTime( now.getTime() - startTime.getTime() );
-          tryTime.setTime( now.getTime() - notImproved.getTime() );
-          System.out.println( "\r" + convertMillisToTimeFormat(
-            runTime.getTime() )
-                              + " g:" + generation + " s:" + ( (float) generation / runTime
-                                                                .getTime() )
-                              + " ni:" + convertMillisToTimeFormat(
-              tryTime.getTime() ) + " --" );
-          System.out.flush();
-        }
+        // Display periodic progress
+        displayProgress();
 
-        // Adaptation of parameters
+        // Adapt problem parameters based on the best solution
         problem.adapt( lastBest.getFitness() );
+
       }
       while( ( now.getTime() - notImproved.getTime() ) < PATIENCE
              && population.getFittest().getFitness() < problem.getGoalFt() );
-      // Report the final state
+
+      // Final reporting after completion of evolution
       report( "L",
               problemRunName );
     }
   }
 
-  private static void report( String phase,
-                              String problemName ) {
+  // Initializes the population for the problem
+  private static void initializePopulation( Problem problem ) {
+    population = new Population( 20,
+                                 problem,
+                                 true,
+                                 new Random() );
+    population.evaluate();
+  }
+
+  // Handles the process of evolving the population through selection, recombination, and mutation
+  private static void evolvePopulation( String problemRunName,
+                                        Problem problem ) {
+    // Selection phase
+    population.select();
+
+    // Recombination phase
+    population.recombinate();
+    population.evaluate();
+    checkImprovement( "R",
+                      problemRunName,
+                      problem );
+
+    // Mutation phase
+    population.mutate();
+    population.evaluate();
+    checkImprovement( "M",
+                      problemRunName,
+                      problem );
+  }
+
+  // Checks if there has been an improvement in the population
+  private static void checkImprovement( String phase,
+                                        String problemRunName,
+                                        Problem problem ) {
+    if( lastBest.getFitness() <= population.getFittest().getFitness()
+        && lastBest.distanceSqTo( population.getFittest() ) > 0.0 ) {
+      report( phase,
+              problemRunName );
+      lastBest = problem.getNewIndividual( population.getFittest() );
+      notImproved = new Date();
+      lastDisplay = new Date();
+    }
+    generation++;
+  }
+
+  // Displays progress periodically to the console
+  private static void displayProgress() {
+    if( ( now.getTime() - lastDisplay.getTime() ) > PATIENCE / 10 ) {
+      lastDisplay = new Date();
+      runTime.setTime( now.getTime() - startTime.getTime() );
+      tryTime.setTime( now.getTime() - notImproved.getTime() );
+      System.out.println( "\r" + convertMillisToTimeFormat( runTime.getTime() )
+                          + " g:" + generation + " s:" + ( (float) generation / runTime.getTime() )
+                          + " ni:" + convertMillisToTimeFormat(
+          tryTime.getTime() ) + " --" );
+      System.out.flush();
+    }
+  }
+
+  // Logs the current state of the genetic algorithm
+  static protected void report( String phase,
+                                String problemName ) {
     Individual best = population.getFittest();
     double distance = best.distanceSqTo( lastBest );
     Date now = new Date();
-    String s = "" + convertMillisToTimeFormat(
-           now.getTime() - startTime.getTime() )
-               + " " + convertMillisToTimeFormat(
-             now.getTime() - notImproved.getTime() )
-               + " " + repetition
-               + " " + generation
-               + " " + String.format( "%9.7f",
-                                      (float) ( generation ) / ( now.getTime() - startTime
-                                                                .getTime() ) )
-               + " " + phase
-               + " " + distance
-               //+ " " + deltaFt
-               + "\t" + best
-               + "\t" + best.genomeStr()
-               + "\t" + now
-               + " " + ( now.getTime() - startTime.getTime() ) + "\n";
-    System.out.print( "\r" + s );
+    String reportString = String.format(
+           "%s %s %d %d %9.7f %s %f\t%s\t%s\t%s %d\n",
+           convertMillisToTimeFormat( now.getTime() - startTime.getTime() ),
+           convertMillisToTimeFormat( now.getTime() - notImproved.getTime() ),
+           repetition,
+           generation,
+           (float) generation / ( now.getTime() - startTime.getTime() ),
+           phase,
+           distance,
+           best,
+           best.genomeStr(),
+           now,
+           ( now.getTime() - startTime.getTime() ) );
+
+    System.out.print( "\r" + reportString );
     System.out.flush();
 
-    try( PrintWriter out = new PrintWriter(
-                     new BufferedWriter(
-                       new FileWriter(
-                         problemName + ".txt",
-                         true ) ) ) ) {
-      out.print( s );
+    logToFile( problemName,
+               reportString );
+    logPopulation( problemName );
+  }
 
+  // Logs general report details to a file
+  private static void logToFile( String problemName,
+                                 String content ) {
+    try( PrintWriter out = new PrintWriter( new BufferedWriter( new FileWriter(
+                     problemName + ".txt",
+                     true ) ) ) ) {
+      out.print( content );
     }
     catch( IOException e ) {
       System.out.println( e );
     }
+  }
 
-    try( PrintWriter out = new PrintWriter(
-                     new BufferedWriter(
-                       new FileWriter( problemName + "_" + repetition + ".txt",
-                                       false ) ) ) ) {
+  // Logs the population details to a file
+  private static void logPopulation( String problemName ) {
+    try( PrintWriter out = new PrintWriter( new BufferedWriter( new FileWriter(
+                     problemName + "_" + repetition + ".txt",
+                     false ) ) ) ) {
       for( int i = 0;
            i < population.getSize();
            i++ ) {
         out.println(
-          population.getIndividual( i ) + "\t" + population.getIndividual(
-          i ).genomeStr() );
+          population.getIndividual( i ) + "\t" + population.getIndividual( i ).genomeStr() );
       }
-
     }
     catch( IOException e ) {
       System.out.println( e );

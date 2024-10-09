@@ -89,7 +89,6 @@ public class IndividualDistricts
 
   @Override
   public void mutate( double p ) {
-    super.p = p;
 
     Section[] sections = pd.getSections();
 
@@ -100,7 +99,7 @@ public class IndividualDistricts
         i = 0 + i;
       }
       GeneDistricts g = ( (GeneDistricts) ( this.genome[ i ] ) );
-      g.mutate( super.p,
+      g.mutate( p,
                 sections[ i ],
                 this.genome );
     }

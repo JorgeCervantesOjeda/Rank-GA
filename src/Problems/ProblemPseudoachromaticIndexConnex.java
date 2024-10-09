@@ -8,12 +8,18 @@ import rankga.Individual;
 import rankga.Problem;
 
 /**
- * This class defines a specific problem related to Pseudoachromatic Index
- * Connex. It implements the Problem interface.
+ * ProblemPseudoachromaticIndexConnex - Defines a specific problem related to
+ * the Pseudoachromatic Index Connex. Implements the Problem interface and
+ * provides methods for evaluating fitness, generating individuals, and adapting
+ * parameters for the genetic algorithm.
+ *
+ * Author: Jorge Cervantes Affiliation: Universidad Autónoma Metropolitana,
+ * Mexico City
  */
 public class ProblemPseudoachromaticIndexConnex
   implements Problem {
 
+  // Problem-specific parameters
   private final int numVertices;
   private final int numEdges;
   private int numColors;
@@ -24,92 +30,81 @@ public class ProblemPseudoachromaticIndexConnex
   private final double weightAvg;
 
   /**
-   * Constructor for ProblemPseudoachromaticIndexConnex.
-   *
-   * @param _numVertices  Number of vertices in the problem.
-   * @param _numColors    Number of colors to be used.
-   * @param _weightPairs  Weight factor for considering pairs of colors.
-   * @param _weightColors Weight factor for considering colors.
-   * @param _weightStd    Weight factor for considering the standard deviation
-   *                      of the color histogram values.
-   * @param _weightAvg    Weight factor for considering the average of gene
-   *                      values
+   * Constructor for ProblemPseudoachromaticIndexConnex. Initializes the problem
+   * parameters.
    */
-  public ProblemPseudoachromaticIndexConnex( int _numVertices,
-                                             int _numColors,
-                                             double _weightPairs,
-                                             double _weightColors,
-                                             double _weightStd,
-                                             double _weightAvg ) {
-    numVertices = _numVertices;
+  public ProblemPseudoachromaticIndexConnex() {
+    numVertices = 22;
     numEdges = numVertices * ( numVertices - 1 ) / 2;
-    numColors = _numColors;
-    weightPairs = _weightPairs;
-    weightColors = _weightColors;
-    weightStd = _weightStd;
-    weightAvg = _weightAvg;
+    numColors = 1;
+    weightPairs = 0.01;
+    weightColors = 1;
+    weightStd = 0.000001;
+    weightAvg = 0.000000001;
+
+    // Print the problem parameters for debugging or analysis
     System.out.println( "ProblemPseudoachromaticIndexConnex parameters:" );
     System.out.println( "numVertices: " + numVertices );
     System.out.println( "numEdges: " + numEdges );
     System.out.println( "numColors: " + numColors );
     System.out.println( "weightPairs: " + weightPairs );
-    System.out.println( "weightColors:" + weightColors );
+    System.out.println( "weightColors: " + weightColors );
     System.out.println( "weightStd: " + weightStd );
     System.out.println( "weightAvg: " + weightAvg );
   }
 
   @Override
-  public void adapt( double _bestFitness ) {
-    // Adjust the number of colors if the best fitness is greater or equal to the current number of colors.
-    if( _bestFitness >= numColors ) {
+  public void adapt( double bestFitness ) {
+    // Increment the number of colors if the best fitness meets the threshold
+    if( bestFitness >= numColors ) {
       numColors++;
     }
   }
 
   @Override
   public double fitness( Individual individual ) {
-    boolean isUsedColor[] = new boolean[ numColors ];
+    boolean[] isUsedColor = new boolean[ numColors ];
     int colorCount = 0;
     isColorInVertex = new boolean[ numColors ][ numVertices ];
     individual.setExtraString( new StringBuilder() );
 
     // Set connected vertices
     int edge = 0;
-    for( int vertex_A = 0;
-         vertex_A < numVertices - 1;
-         vertex_A++ ) {
-      for( int vertex_B = vertex_A + 1;
-           vertex_B < numVertices;
-           vertex_B++ ) {
+    for( int vertexA = 0;
+         vertexA < numVertices - 1;
+         vertexA++ ) {
+      for( int vertexB = vertexA + 1;
+           vertexB < numVertices;
+           vertexB++ ) {
         int edgeColor = individual.getGene( edge ).getIntValue();
         if( !isUsedColor[ edgeColor ] ) {
           colorCount++;
         }
         isUsedColor[ edgeColor ] = true;
-        isColorInVertex[ edgeColor ][ vertex_A ] = true;
-        isColorInVertex[ edgeColor ][ vertex_B ] = true;
+        isColorInVertex[ edgeColor ][ vertexA ] = true;
+        isColorInVertex[ edgeColor ][ vertexB ] = true;
         edge++;
       }
     }
 
-    // Check each color pair and count Pair Connections
+    // Check each color pair and count pair connections
     int countNotConnectedPairs = 0;
     int sumNumPairConnections = 0;
     int numPairs = 0;
-    for( int color_A = 0;
-         color_A < numColors - 1;
-         color_A++ ) {
-      if( isUsedColor[ color_A ] ) {
-        for( int color_B = color_A + 1;
-             color_B < numColors;
-             color_B++ ) {
-          if( isUsedColor[ color_B ] ) {
+    for( int colorA = 0;
+         colorA < numColors - 1;
+         colorA++ ) {
+      if( isUsedColor[ colorA ] ) {
+        for( int colorB = colorA + 1;
+             colorB < numColors;
+             colorB++ ) {
+          if( isUsedColor[ colorB ] ) {
             numPairs++;
             int numPairConnections = 0;
             for( int vertex = 0;
                  vertex < numVertices;
                  vertex++ ) {
-              if( isColorInVertex[ color_A ][ vertex ] && isColorInVertex[ color_B ][ vertex ] ) {
+              if( isColorInVertex[ colorA ][ vertex ] && isColorInVertex[ colorB ][ vertex ] ) {
                 numPairConnections++;
               }
             }
@@ -138,14 +133,17 @@ public class ProblemPseudoachromaticIndexConnex
       }
     }
 
-    int colorHistogram[] = new int[ numColors ];
+    // Calculate the color histogram
+    int[] colorHistogram = new int[ numColors ];
     for( int i = 0;
          i < this.getGenomeLength();
          i++ ) {
       colorHistogram[ individual.getGene( i ).getIntValue() ]++;
     }
-    double std = std( colorHistogram );
-    double avg = avg( individual );
+    double std = calculateStandardDeviation( colorHistogram );
+    double avg = calculateAverage( individual );
+
+    // Append extra information to the individual's extra string
     individual.appendExtraString(
       " " + colorCount
       + "_" + String.format( "%02d",
@@ -163,23 +161,22 @@ public class ProblemPseudoachromaticIndexConnex
       individual.appendExtraString( "|" + colorHistogram[ i ] );
     }
 
+    // Calculate fitness
     double fitness = colorCount
                      - countNotConnectedPairs * weightPairs
                      - countNotConnectedColor * weightColors
                      - std * weightStd
                      - avg * weightAvg;
-    if( colorCount == numColors
-        && countNotConnectedPairs == 0
-        && countNotConnectedColor == 0 ) {
+
+    if( colorCount == numColors && countNotConnectedPairs == 0 && countNotConnectedColor == 0 ) {
       return colorCount;
     }
     return fitness;
-
   }
 
   @Override
   public String getProblemName() {
-    return "PseudoacromaticIndexConnex_"
+    return "PseudoachromaticIndexConnex_"
            + this.numVertices + "_"
            + this.numColors + "_"
            + this.weightPairs + "_"
@@ -193,18 +190,18 @@ public class ProblemPseudoachromaticIndexConnex
   }
 
   @Override
-  public Gene getNewGene( boolean _randomize_p,
+  public Gene getNewGene( boolean randomize,
                           Random r ) {
     return new GeneInteger( numColors,
-                            _randomize_p,
+                            randomize,
                             r );
   }
 
   @Override
-  public Gene getNewGene( Gene _gene ) {
-    GeneInteger g = new GeneInteger( (GeneInteger) _gene );
-    g.setNumValues( numColors );
-    return g;
+  public Gene getNewGene( Gene gene ) {
+    GeneInteger newGene = new GeneInteger( (GeneInteger) gene );
+    newGene.setNumValues( numColors );
+    return newGene;
   }
 
   @Override
@@ -218,22 +215,22 @@ public class ProblemPseudoachromaticIndexConnex
   }
 
   @Override
-  public Individual getNewIndividual( boolean _randomize,
-                                      Random _r ) {
-    Individual ind = new Individual( this,
-                                     _randomize,
-                                     _r );
-    if( _randomize ) {
-      return ind;
+  public Individual getNewIndividual( boolean randomize,
+                                      Random random ) {
+    Individual individual = new Individual( this,
+                                            randomize,
+                                            random );
+    if( randomize ) {
+      return individual;
     }
 
-    // Open file for initializing the individual
+    // Initialize individual from a file
     try( BufferedReader br = new BufferedReader( new FileReader(
                         "init_individual_" + this.numVertices + "_" + this.numColors + ".txt" ) ) ) {
       String line;
       int i = 0;
 
-      // Read Individual
+      // Read individual from file
       while( ( line = br.readLine() ) != null && i < this.getGenomeLength() ) {
         String[] parts = line.trim().split( "\\s+" );
         for( String part
@@ -241,12 +238,12 @@ public class ProblemPseudoachromaticIndexConnex
           if( i >= this.getGenomeLength() ) {
             break;
           }
-          GeneInteger g = new GeneInteger( this.numColors,
-                                           false,
-                                           _r );
-          g.setIntValue( Integer.parseInt( part ) );
-          ind.setGene( i,
-                       g );
+          GeneInteger gene = new GeneInteger( this.numColors,
+                                              false,
+                                              random );
+          gene.setIntValue( Integer.parseInt( part ) );
+          individual.setGene( i,
+                              gene );
           i++;
         }
       }
@@ -259,31 +256,32 @@ public class ProblemPseudoachromaticIndexConnex
       System.out.println( ex );
     }
 
-    return ind;
+    return individual;
   }
 
   @Override
   public Individual getNewIndividual( Individual another ) {
-    return new Individual( (Individual) another );
+    return new Individual( another );
   }
 
   /**
-   * Checks if two vertices are connected with the same color.
+   * Checks if all vertices of a given color are connected.
    *
    * @param color      The color to check for.
    * @param individual The individual containing the genes.
    *
-   * @return True if the vertices are connected with the same color, false
-   *         otherwise.
+   * @return True if all vertices of the color are connected, false otherwise.
    */
   private boolean isConnected( int color,
                                Individual individual ) {
     boolean[] visited = new boolean[ numVertices ];
-    int vertex_A = 0;
-    // Find the first vertex with the color
-    while( !isColorInVertex[ color ][ vertex_A ] && vertex_A < numVertices ) {
-      vertex_A++;
+    int vertexA = 0;
+
+    // Find the first vertex with the specified color
+    while( !isColorInVertex[ color ][ vertexA ] && vertexA < numVertices ) {
+      vertexA++;
     }
+
     // Count vertices with the color
     int countColor = 0;
     for( int i = 0;
@@ -294,41 +292,40 @@ public class ProblemPseudoachromaticIndexConnex
       }
     }
 
-    int count = countConnectedVertices( vertex_A,
+    int count = countConnectedVertices( vertexA,
                                         color,
                                         individual,
                                         visited );
-
     return count == countColor;
   }
 
   /**
    * Count the number of connected vertices with the same color.
    *
-   * @param vertex_A   The starting vertex.
+   * @param vertexA    The starting vertex.
    * @param color      The color to check for.
    * @param individual The individual containing the genes.
    * @param visited    Array to keep track of visited vertices.
    *
    * @return The count of connected vertices with the same color.
    */
-  private int countConnectedVertices( int vertex_A,
+  private int countConnectedVertices( int vertexA,
                                       int color,
                                       Individual individual,
                                       boolean[] visited ) {
-    if( visited[ vertex_A ] ) {
+    if( visited[ vertexA ] ) {
       return 0;
     }
 
     int count = 1;
-    visited[ vertex_A ] = true;
+    visited[ vertexA ] = true;
     for( int neighbor = 0;
          neighbor < numVertices;
          neighbor++ ) {
-      if( vertex_A != neighbor ) {
-        if( color( vertex_A,
-                   neighbor,
-                   individual ) == color ) {
+      if( vertexA != neighbor ) {
+        if( getColor( vertexA,
+                      neighbor,
+                      individual ) == color ) {
           count += countConnectedVertices( neighbor,
                                            color,
                                            individual,
@@ -348,48 +345,56 @@ public class ProblemPseudoachromaticIndexConnex
    *
    * @return The color of the edge between the vertices.
    */
-  private int color( int i,
-                     int j,
-                     Individual individual ) {
+  private int getColor( int i,
+                        int j,
+                        Individual individual ) {
     if( i > j ) {
       int aux = i;
       i = j;
       j = aux;
     }
     return individual.getGene(
-      i * ( numVertices - 1 ) + j - ( i + 1 ) * ( i + 2 ) / 2 + i )
-      .getIntValue();
+      i * ( numVertices - 1 ) + j - ( i + 1 ) * ( i + 2 ) / 2 + i ).getIntValue();
   }
 
-  private double std( int[] arr ) {
+  /**
+   * Calculate the standard deviation of an array of integers.
+   *
+   * @param arr The array of integers.
+   *
+   * @return The standard deviation of the array.
+   */
+  private double calculateStandardDeviation( int[] arr ) {
     double sum = 0;
-    for( int i = 0;
-         i < arr.length;
-         i++ ) {
-      sum += arr[ i ];
+    for( int value
+         : arr ) {
+      sum += value;
     }
     double avg = sum / arr.length;
     double sumDiffSqr = 0;
-    double diff;
-    for( int i = 0;
-         i < arr.length;
-         i++ ) {
-      diff = arr[ i ] - avg;
+    for( int value
+         : arr ) {
+      double diff = value - avg;
       sumDiffSqr += diff * diff;
     }
     return Math.sqrt( sumDiffSqr / arr.length );
   }
 
-  private double avg( Individual individual ) {
+  /**
+   * Calculate the average value of the genes in an individual's genome.
+   *
+   * @param individual The individual whose genes are being averaged.
+   *
+   * @return The average value of the genes.
+   */
+  private double calculateAverage( Individual individual ) {
     double sum = 0;
     for( int i = 0;
          i < this.getGenomeLength();
          i++ ) {
       sum += individual.getGene( i ).getIntValue();
     }
-    double avg = sum / this.getGenomeLength();
-
-    return avg;
+    return sum / this.getGenomeLength();
   }
 
 }

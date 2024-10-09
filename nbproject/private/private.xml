@@ -3,8 +3,25 @@
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
-            <file>file:/C:/Users/usuario/Dropbox/NetBeansProjects/RankGA/src/rankga/RankGA.java</file>
-            <file>file:/C:/Users/usuario/Dropbox/NetBeansProjects/RankGA/src/Problems/ProblemPseudoachromaticIndexConnex.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/rankga/Individual.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/rankga/Gene.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/ProblemDistricts.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/ProblemTS.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/rankga/Population.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/rankga/Problem.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/IndividualDistricts.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/IndividualTS.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/ProblemTaskAssignment.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/ProblemPseudoachromaticIndexConnex.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/ProblemTS_Reals.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/ProblemNIAH.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/ProblemNK.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/rankga/RankGA.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/ProblemDeceptive.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/rankga/ConvertTime.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/GeneDistricts.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/GeneTS.java</file>
+            <file>file:/C:/Users/usuario/ownCloud2/RankGA/src/Problems/ProblemKnapsack.java</file>
         </group>
     </open-files>
 </project-private>
