@@ -14,6 +14,8 @@ import rankga.Individual;
 import rankga.Problem;
 
 /**
+ * Connected pseudoachromatic-index benchmark.
+ * See `references/edge_colorings_complete_graphs_connected_classes.pdf`.
  *
  * @author usuario
  */

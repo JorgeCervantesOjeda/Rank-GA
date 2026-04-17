@@ -13,6 +13,8 @@ import rankga.Individual;
 import rankga.Problem;
 
 /**
+ * TSP benchmark based on the representation/operator review stored in
+ * `references/A_1006529012972.pdf`.
  *
  * @author usuario
  */

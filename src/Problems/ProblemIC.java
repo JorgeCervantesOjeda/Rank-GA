@@ -3,6 +3,11 @@ package Problems;
 import java.util.Random;
 import rankga.*;
 
+/**
+ * Identifying-code benchmark on grid graphs.
+ * See `references/identifying_code_population_based_local_search.pdf` and
+ * `references/minimum_identifying_code_enhanced_genetic_algorithms.md`.
+ */
 public class ProblemIC
   implements Problem {
 

@@ -21,6 +21,8 @@ import rankga.Individual;
 import rankga.Problem;
 
 /**
+ * TSP variant that follows the same representation lineage as
+ * `references/A_1006529012972.pdf`.
  *
  * @author usuario
  */

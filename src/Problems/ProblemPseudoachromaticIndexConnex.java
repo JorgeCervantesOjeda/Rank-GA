@@ -14,6 +14,8 @@ import rankga.Problem;
  * provides methods for evaluating fitness, generating individuals, and adapting
  * parameters for the genetic algorithm.
  *
+ * See `references/edge_colorings_complete_graphs_connected_classes.pdf`.
+ *
  * Author: Jorge Cervantes Affiliation: Universidad Autónoma Metropolitana,
  * Mexico City
  */

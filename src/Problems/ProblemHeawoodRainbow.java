@@ -19,6 +19,8 @@ import rankga.Individual;
 import rankga.Problem;
 
 /**
+ * Rainbow-coloring benchmark in the Moore-cage / Heawood line of work.
+ * See `references/rainbow_connectivity_rank_ga_moore_cages_girth_six.pdf`.
  *
  * @author usuario
  */

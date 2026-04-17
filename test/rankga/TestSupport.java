@@ -85,6 +85,119 @@ final class TestSupport {
   }
 
   /**
+   * Gene that records the last mutation intensity it received.
+   * <p>
+   * Used to verify the rank-based mutation schedule without changing the
+   * locus value during the test.
+   */
+  static final class RecordingGene
+    implements Gene {
+
+    private double value;
+    private double lastIntensity = Double.NaN;
+    private int numValues = 2;
+
+    RecordingGene() {
+      this( 0 );
+    }
+
+    RecordingGene( int value ) {
+      this.value = value;
+    }
+
+    RecordingGene( RecordingGene other ) {
+      this.value = other.value;
+      this.lastIntensity = other.lastIntensity;
+      this.numValues = other.numValues;
+    }
+
+    @Override
+    public void setIntValue( int value ) {
+      if( value < 0 || value >= numValues ) {
+        return;
+      }
+      this.value = value;
+    }
+
+    @Override
+    public void setDoubleValue( double value ) {
+      this.setIntValue( (int) Math.round( value ) );
+    }
+
+    @Override
+    public double getValue() {
+      return this.value;
+    }
+
+    @Override
+    public void mutate( double intensity ) {
+      this.lastIntensity = intensity;
+    }
+
+    @Override
+    public double distanceTo( Gene other ) {
+      return this.value == other.getValue()
+             ? 0.0
+             : 1.0;
+    }
+
+    @Override
+    public int getNumValues() {
+      return this.numValues;
+    }
+
+    @Override
+    public void setNumValues( int numValues ) {
+      if( numValues < 2 ) {
+        throw new IllegalArgumentException(
+          "RecordingGene domain size must be at least 2" );
+      }
+      this.numValues = numValues;
+      if( this.value >= this.numValues ) {
+        this.value = this.numValues - 1;
+      }
+    }
+
+    double getLastIntensity() {
+      return this.lastIntensity;
+    }
+
+  }
+
+  /**
+   * Random source with a scripted nextDouble() sequence.
+   * <p>
+   * Useful to force recombination decisions deterministically.
+   */
+  static final class ScriptedRandom
+    extends Random {
+
+    private final double[] doubles;
+    private int index;
+
+    ScriptedRandom( double... doubles ) {
+      this.doubles = doubles.length == 0
+                     ? new double[] { 0.0 }
+                     : doubles.clone();
+      this.index = 0;
+    }
+
+    @Override
+    public double nextDouble() {
+      if( this.index >= this.doubles.length ) {
+        return this.doubles[ this.doubles.length - 1 ];
+      }
+      return this.doubles[ this.index++ ];
+    }
+
+    @Override
+    public boolean nextBoolean() {
+      return nextDouble() < 0.5;
+    }
+
+  }
+
+  /**
    * Shared base problem for test stubs.
    */
   static abstract class BaseProblem
@@ -201,6 +314,61 @@ final class TestSupport {
     @Override
     public double getGoalFt() {
       return this.goalFt;
+    }
+
+  }
+
+  /**
+   * Problem stub that emits RecordingGene instances and records mutation
+   * intensities through the gene itself.
+   */
+  static final class RecordingProblem
+    extends BaseProblem {
+
+    private final double globalIntensity;
+    private final double localIntensity;
+
+    RecordingProblem( String name,
+                      int genomeLength,
+                      double globalIntensity,
+                      double localIntensity ) {
+      super( name,
+             genomeLength );
+      this.globalIntensity = globalIntensity;
+      this.localIntensity = localIntensity;
+    }
+
+    @Override
+    public double fitness( Individual individual ) {
+      return 0.0;
+    }
+
+    @Override
+    public double getGoalFt() {
+      return 0.0;
+    }
+
+    @Override
+    public Gene getNewGene( boolean randomize,
+                            Random r ) {
+      return new RecordingGene( randomize && r.nextBoolean()
+                                ? 1
+                                : 0 );
+    }
+
+    @Override
+    public Gene getNewGene( Gene gene ) {
+      return new RecordingGene( (RecordingGene) gene );
+    }
+
+    @Override
+    public double getGlobalSearchIntensity() {
+      return this.globalIntensity;
+    }
+
+    @Override
+    public double getLocalSearchIntensity() {
+      return this.localIntensity;
     }
 
   }

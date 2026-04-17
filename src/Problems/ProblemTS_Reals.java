@@ -22,6 +22,8 @@ import rankga.Individual;
 import rankga.Problem;
 
 /**
+ * Random-key TSP encoding. See `references/random-key.pdf` and
+ * `references/A_1006529012972.pdf`.
  *
  * @author usuario
  */
