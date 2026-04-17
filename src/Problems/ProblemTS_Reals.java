@@ -56,9 +56,10 @@ public class ProblemTS_Reals
     BufferedReader csvReader = null;
     try {
       Path path = FileSystems.getDefault().getPath( "" ).toAbsolutePath();
-      csvReader = new BufferedReader( new FileReader(
-      path + "\\qatar194.tsp.txt" ) );
-      System.out.println( "Leyendo: " + path + "\\qatar194.tsp.txt" );
+      Path dataFile = path.resolve( "data" )
+        .resolve( "qatar194.tsp.txt" );
+      csvReader = new BufferedReader( new FileReader( dataFile.toFile() ) );
+      System.out.println( "Leyendo: " + dataFile );
       String row;
 
       if( null == ( row = csvReader.readLine() ) ) {

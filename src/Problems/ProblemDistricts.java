@@ -124,8 +124,10 @@ public class ProblemDistricts
     BufferedReader csvReader = null;
     try {
       Path path = FileSystems.getDefault().getPath( "" ).toAbsolutePath();
-      csvReader = new BufferedReader( new FileReader( path + "\\datos.csv" ) );
-      System.out.println( "Leyendo: " + path + "\\datos.csv" );
+      Path dataFile = path.resolve( "data" )
+        .resolve( "Datos.csv" );
+      csvReader = new BufferedReader( new FileReader( dataFile.toFile() ) );
+      System.out.println( "Leyendo: " + dataFile );
       String row;
       while( ( row = csvReader.readLine() ) != null ) {
         String[] data = row.split( "," );
@@ -148,10 +150,10 @@ public class ProblemDistricts
       }
       csvReader.close();
     } catch( FileNotFoundException ex ) {
-      System.out.println( "------ No existe Datos.csv -------------" );
+      System.out.println( "------ No existe data/Datos.csv -------------" );
       System.out.println( ex );
     } catch( IOException ex ) {
-      System.out.println( "------ No se pudo leer de Datos.csv -------------" );
+      System.out.println( "------ No se pudo leer de data/Datos.csv -------------" );
       System.out.println( ex );
     } finally {
       try {
@@ -169,9 +171,10 @@ public class ProblemDistricts
     BufferedReader csvReader = null;
     try {
       Path path = FileSystems.getDefault().getPath( "" ).toAbsolutePath();
-      csvReader = new BufferedReader( new FileReader(
-      path + "\\colindancias.csv" ) );
-      System.out.println( "Leyendo: " + path + "\\colindancias.csv" );
+      Path dataFile = path.resolve( "data" )
+        .resolve( "Colindancias.csv" );
+      csvReader = new BufferedReader( new FileReader( dataFile.toFile() ) );
+      System.out.println( "Leyendo: " + dataFile );
       String row;
       while( ( row = csvReader.readLine() ) != null ) {
         String[] data = row.split( "," );
@@ -186,11 +189,11 @@ public class ProblemDistricts
       }
       csvReader.close();
     } catch( FileNotFoundException ex ) {
-      System.out.println( "------ No existe Colindancias.csv -------------" );
+      System.out.println( "------ No existe data/Colindancias.csv -------------" );
       System.out.println( ex );
     } catch( IOException ex ) {
       System.out.println(
-        "------ No se pudo leer de Colindancias.csv -------------" );
+        "------ No se pudo leer de data/Colindancias.csv -------------" );
       System.out.println( ex );
     } finally {
       try {

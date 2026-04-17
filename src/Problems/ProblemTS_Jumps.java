@@ -44,9 +44,10 @@ public class ProblemTS_Jumps
     BufferedReader csvReader = null;
     try {
       Path path = FileSystems.getDefault().getPath( "" ).toAbsolutePath();
-      csvReader = new BufferedReader( new FileReader(
-      path + "\\qatar194.tsp.txt" ) );
-      System.out.println( "Leyendo: " + path + "\\qatar194.tsp.txt" );
+      Path dataFile = path.resolve( "data" )
+        .resolve( "qatar194.tsp.txt" );
+      csvReader = new BufferedReader( new FileReader( dataFile.toFile() ) );
+      System.out.println( "Leyendo: " + dataFile );
       String row;
 
       if( null == ( row = csvReader.readLine() ) ) {
@@ -69,10 +70,10 @@ public class ProblemTS_Jumps
       }
       csvReader.close();
     } catch( FileNotFoundException ex ) {
-      System.out.println( "------ No existe Datos.csv -------------" );
+      System.out.println( "------ No existe data/qatar194.tsp.txt -------------" );
       System.out.println( ex );
     } catch( IOException ex ) {
-      System.out.println( "------ No se pudo leer de Datos.csv -------------" );
+      System.out.println( "------ No se pudo leer de data/qatar194.tsp.txt -------------" );
       System.out.println( ex );
     } finally {
       try {

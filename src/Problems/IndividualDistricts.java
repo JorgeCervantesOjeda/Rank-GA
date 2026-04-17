@@ -55,8 +55,10 @@ public class IndividualDistricts
     BufferedReader csvReader = null;
     try {
       Path path = FileSystems.getDefault().getPath( "" ).toAbsolutePath();
-      csvReader = new BufferedReader( new FileReader( path + "\\ejemplo.csv" ) );
-      System.out.println( "Leyendo: " + path + "\\ejemplo.csv" );
+      Path dataFile = path.resolve( "data" )
+        .resolve( "ejemplo.csv" );
+      csvReader = new BufferedReader( new FileReader( dataFile.toFile() ) );
+      System.out.println( "Leyendo: " + dataFile );
       String row;
       while( ( row = csvReader.readLine() ) != null ) {
         String[] data = row.split( "," );
@@ -68,11 +70,11 @@ public class IndividualDistricts
       csvReader.close();
     }
     catch( FileNotFoundException ex ) {
-      System.out.println( "------ No existe Datos.csv -------------" );
+      System.out.println( "------ No existe data/ejemplo.csv -------------" );
       System.out.println( ex );
     }
     catch( IOException ex ) {
-      System.out.println( "------ No se pudo leer de Datos.csv -------------" );
+      System.out.println( "------ No se pudo leer de data/ejemplo.csv -------------" );
       System.out.println( ex );
     }
     finally {
