@@ -4,250 +4,344 @@ import java.util.ArrayList;
 import java.util.Random;
 
 /**
- * Population - Class Representing a Population of Individuals
+ * Population — Cohort of Individuals managed by Rank-GA.
  *
- * This class represents a population of individuals for use in genetic
- * algorithm-based optimization. It contains methods for population
- * initialization, evaluation, selection, recombination, mutation, and parameter
- * updates.
+ * <h2>Purpose</h2>
+ * Encapsulates the core GA loop components that act at the population level:
+ * <ul>
+ * <li><b>Initialization</b>: create N individuals via the {@link Problem}
+ * factory.</li>
+ * <li><b>Evaluation</b>: compute fitness for all individuals and keep the
+ * population sorted in <b>descending</b> order (index 0 = best).</li>
+ * <li><b>Selection</b>: rank-based deterministic + stochastic rounding of clone
+ * counts using a selection pressure S, producing exactly N clones.</li>
+ * <li><b>Recombination</b>: uniform crossover in ordered adjacent pairs (0,1),
+ * (2,3), …</li>
+ * <li><b>Mutation</b>: rank-based per-individual <i>intensity</i> schedule
+ * {@code I_i = G * (rank_i)^beta}, where {@code beta = ln(G/L)/ln(N-1)} and
+ * {@code rank_i = i/N}.</li>
+ * </ul>
  *
- * Author: Jorge Cervantes Affiliation: Universidad Autónoma Metropolitana,
- * Mexico City
+ * <h2>Key conventions</h2>
+ * <ul>
+ * <li><b>Fitness orientation</b>: higher is better. Sorting is descending.</li>
+ * <li><b>Rank definition</b>: after sorting, index i∈[0..N-1] induces rank r_i
+ * = i/N. Thus r_0 = 0 (best), r_{N-1} ≈ 1 (worst, strictly (N-1)/N).</li>
+ * <li><b>Mutation intensity</b>: the scalar passed to
+ * {@code Individual.mutate(double)} is an <b>intensity</b>, not a per-gene
+ * probability. Each Gene interprets intensity consistently (e.g., step size,
+ * noise scale).</li>
+ * <li><b>Preconditions</b>: it is assumed that {@code G > L}, so
+ * {@code beta > 0}. This preserves elites (best individual receives intensity
+ * 0).</li>
+ * </ul>
+ *
+ * <h2>Complexity</h2>
+ * <ul>
+ * <li>Evaluation: O(N * cost(fitness)).</li>
+ * <li>Sorting: O(N log N).</li>
+ * <li>Selection (cloning + rounding): O(N).</li>
+ * <li>Recombination: O(N * genomeLength).</li>
+ * <li>Mutation: O(N * genomeLength).</li>
+ * </ul>
+ *
+ * Author: Jorge Cervantes — Universidad Autónoma Metropolitana, Mexico City
  */
 public class Population {
 
-  private ArrayList<Individual> theIndividuals;
-  private final double K; // Selective pressure
-  private final double exponent;
-  private final double maxMut;
+  /**
+   * Current population contents; maintained in descending fitness order after
+   * evaluate().
+   */
+  private ArrayList<Individual> individuals;
+
+  /**
+   * Intensities supplied by the {@link Problem}:
+   * <ul>
+   * <li>{@code globalSearchIntensity} (G): upper bound (max) used at worst
+   * ranks.</li>
+   * <li>{@code localSearchIntensity} (L): lower bound (min) used to define the
+   * exponent.</li>
+   * </ul>
+   * Both are treated as <b>intensities</b> (unitless), not probabilities.
+   */
+  private final double localSearchIntensity;
+  private final double globalSearchIntensity;
+
+  /**
+   * Selection pressure S fixed by algorithm design.
+   * <p>
+   * Clone expectation per rank uses: c_i = S * (1 - r_i)^{S - 1} with r_i =
+   * i/N. Here S is intentionally fixed at 3.0, not exposed as a tunable
+   * hyperparameter.</p>
+   */
+  private static final double SELECTION_PRESSURE = 3.0;
+
+  /**
+   * Mutation exponent β = ln(G/L) / ln(N-1).
+   * <p>
+   * Combines with rank r_i = i/N to produce per-individual intensity I_i = G *
+   * (r_i)^β. With G > L ⇒ β > 0 ⇒ I_0 = 0 (elite preservation) and intensity
+   * increases with rank.</p>
+   */
+  private final double mutationExponent;
+
+  /**
+   * Problem factory & PRNG for constructing/copying individuals and for
+   * stochastic steps.
+   */
   private final Problem problem;
   private final Random randomizer;
 
+  // --------------------------------------------------------------------------------------------
+  // Construction & initialization
+  // --------------------------------------------------------------------------------------------
   /**
-   * Constructor for the Population class.
+   * Constructs a population of size {@code numIndividuals}. Initializes each
+   * individual using the problem factory (random or default per flag), and
+   * precomputes the mutation exponent β based on {@code G} and {@code L}
+   * retrieved from the problem.
    *
-   * @param numIndividuos The number of individuals in the population.
-   * @param problem       The problem being optimized.
-   * @param randomize     Whether to randomize the initial population.
-   * @param r             The random number generator.
+   * @param numIndividuals Number of individuals (N). Must be ≥ 2 to define
+   *                       ln(N-1).
+   * @param problem        Problem that supplies factories, intensities, and
+   *                       fitness.
+   * @param randomize      Whether to randomize initial genomes.
+   * @param randomizer     PRNG for initialization and subsequent stochastic
+   *                       steps.
    */
-  public Population( int numIndividuos,
+  public Population( int numIndividuals,
                      Problem problem,
                      boolean randomize,
-                     Random r ) {
+                     Random randomizer ) {
     this.problem = problem;
-    this.randomizer = r;
-    theIndividuals = new ArrayList<>();
-    for( int i = 0;
-         i < numIndividuos;
-         i++ ) {
-      theIndividuals.add( problem.getNewIndividual( randomize,
-                                                    r ) );
+    this.randomizer = randomizer;
+
+    // Create initial cohort.
+    individuals = new ArrayList<>();
+    for( int i = 0; i < numIndividuals; i++ ) {
+      individuals.add( problem.getNewIndividual( randomize,
+                                                 randomizer ) );
     }
-    K = 3.0;
-    maxMut = 0.1;
-    exponent = Math.log( problem.getGenomeLength() * maxMut ) / Math.log(
-    numIndividuos - 1 );
-    System.out.println( "NumIndividuos = " + numIndividuos );
-    System.out.println( "K = " + K );
-    System.out.println( "maxMut = " + maxMut );
-    System.out.println( "exponent = " + exponent );
+
+    // Intensities from the Problem (see Problem.getGlobalSearchIntensity / getLocalSearchIntensity).
+    this.globalSearchIntensity = problem.getGlobalSearchIntensity(); // G
+    this.localSearchIntensity = problem.getLocalSearchIntensity();  // L
+
+    // β = ln(G/L) / ln(N-1). Assumes G > L and N > 1. Matches the Java used in mutate().
+    this.mutationExponent =
+    Math.log( globalSearchIntensity / localSearchIntensity )
+    / Math.log( numIndividuals - 1 );
+
+    // Optional: log hyperparameters for traceability.
+    System.out.println( "NumIndividuals = " + numIndividuals );
+    System.out.println( "Selective Pressure = " + SELECTION_PRESSURE + " (fixed)" );
+    System.out.println( "Max Mutation Rate (G) = " + globalSearchIntensity );
+    System.out.println( "Mutation Exponent (beta) = " + mutationExponent );
   }
 
+  // --------------------------------------------------------------------------------------------
+  // Evaluation & ordering
+  // --------------------------------------------------------------------------------------------
   /**
-   * Evaluate the fitness of individuals in the population sequentially.
+   * Evaluate fitness for every individual, then keep the array ordered in
+   * descending fitness.
+   * <p>
+   * Sorting is central because rank-based selection/recombination/mutation
+   * depend on index order.</p>
    */
   public void evaluate() {
-    for( Individual individual
-         : theIndividuals ) {
+    for( Individual individual : individuals ) {
       individual.updateFitness();
     }
-    this.sort();
+    sortIndividualsByFitness();
   }
 
   /**
-   * Sort the individuals in the population based on their fitness values in
-   * descending order.
+   * Internal ordering by descending fitness: index 0 is the best individual.
    */
-  private void sort() {
-    theIndividuals.sort( ( a, b )
-      -> compareIndividuals( a,
-                             b ) );
+  private void sortIndividualsByFitness() {
+    individuals.sort( ( a, b )
+      -> Double.compare( b.getFitness(),
+                         a.getFitness() ) );
   }
 
+  // --------------------------------------------------------------------------------------------
+  // Selection: rank-based cloning with stochastic rounding
+  // --------------------------------------------------------------------------------------------
   /**
-   * Compare two individuals based on their fitness values.
+   * Rank-based selection via expected clone counts:
+   * <pre>
+   *   r_i = i / N
+   *   E[clones_i] = c_i = S * (1 - r_i)^{S - 1}
+   * </pre>
    *
-   * @param a The first individual.
-   * @param b The second individual.
+   * Procedure:
+   * <ol>
+   * <li>Allocate floor(c_i) clones for each i.</li>
+   * <li>If total < N, loop cyclically over i and, with probability equal to the
+   * fractional part f_i = c_i - floor(c_i), add one extra clone until the
+   * population reaches N.</li> <li>Replace the current population by the list
+   * of clones (deep copies)
+   * .</li>
+   * </ol>
    *
-   * @return -1 if a is fitter, 1 if b is fitter, 0 if they have equal fitness.
-   */
-  private int compareIndividuals( Individual a,
-                                  Individual b ) {
-    return Double.compare( b.getFitness(),
-                           a.getFitness() );
-  }
-
-  /**
-   * Implement the selection phase of the genetic algorithm to create clones of
-   * individuals based on their fitness and selective pressure.
+   * Properties:
+   * <ul>
+   * <li>Top ranks (small r_i) rece ive mor e e x pec ted clones when S >
+   * 1.</li>
+   * <li>Total size is exactly N; this avoids drift in population size.</li>
+   * <li>Uses problem factory {@code getNewIndividual(individual)} to clone
+   * individuals.</li>
+   * </ul>
    */
   public void select() {
-    double numClones;
+    int numIndividuals = individuals.size();
     ArrayList<Individual> clones = new ArrayList<>();
-    int[] totalClones = new int[ theIndividuals.size() ];
-    int totalCloneCount = 0;
+    int[] cloneCounts = new int[ numIndividuals ];
+    int totalClones = 0;
 
-    // First phase: Calculate the base number of clones for each individual
-    for( int i = 0;
-         i < theIndividuals.size();
-         i++ ) {
-      double r = i / (double) theIndividuals.size();
-      numClones = K * Math.pow( 1 - r,
-                                K - 1 );
-      totalClones[ i ] = (int) Math.floor( numClones );
-      totalCloneCount += totalClones[ i ];
+    // 1) Deterministic allocation: floor(c_i).
+    for( int i = 0; i < numIndividuals; i++ ) {
+      double r_i = i / (double) ( numIndividuals - 1 ); // rank in [0, 1)
+      double c_i = SELECTION_PRESSURE * Math.pow( 1 - r_i,
+                                                  SELECTION_PRESSURE - 1 );
+      cloneCounts[ i ] = (int) Math.floor( c_i );
+      totalClones += cloneCounts[ i ];
     }
 
-    // Second phase: Calculate the extra clones based on the fractional part
-    while( totalCloneCount < theIndividuals.size() ) {
-      for( int i = 0;
-           i < theIndividuals.size() && totalCloneCount < theIndividuals.size();
-           i++ ) {
-        double r = i / (double) theIndividuals.size();
-        numClones = K * Math.pow( 1 - r,
-                                  K - 1 );
-        double extraProbability = numClones - Math.floor( numClones );
-
-        if( this.randomizer.nextDouble() < extraProbability ) {
-          totalClones[ i ]++;
-          totalCloneCount++;
+    // 2) Stochastic rounding of the fractional parts to reach exactly N clones.
+    while( totalClones < numIndividuals ) {
+      for( int i = 0; i < numIndividuals && totalClones < numIndividuals; i++ ) {
+        double r_i = i / (double) numIndividuals;
+        double c_i = SELECTION_PRESSURE * Math.pow( 1 - r_i,
+                                                    SELECTION_PRESSURE - 1 );
+        double fractional = c_i - Math.floor( c_i );
+        if( randomizer.nextDouble() < fractional ) {
+          cloneCounts[ i ]++;
+          totalClones++;
         }
       }
     }
 
-    // Generate all the clones based on the calculated totalClones array
-    for( int i = 0;
-         i < theIndividuals.size();
-         i++ ) {
-      for( int j = 0;
-           j < totalClones[ i ];
-           j++ ) {
-        clones.add( problem.getNewIndividual( theIndividuals.get( i ) ) );
+    // 3) Materialize clones as deep copies using the Problem factory.
+    for( int i = 0; i < numIndividuals; i++ ) {
+      for( int j = 0; j < cloneCounts[ i ]; j++ ) {
+        clones.add( problem.getNewIndividual( individuals.get( i ) ) );
       }
     }
 
-    theIndividuals = clones;
+    // Replace the old population with the cloned one.
+    individuals = clones;
   }
 
   /**
-   * Implement the recombination phase of the genetic algorithm. Individuals are
-   * recombined to create new individuals.
+   * Assigns ranks (index order) to individuals. Must be called after sorting
+   * and before rank-dependent operators (recombination/mutation).
    */
-  public void recombinate() {
-    // Set the rank for each individual (used for reporting purposes)
-    for( int i = 0;
-         i < theIndividuals.size();
-         i++ ) {
-      theIndividuals.get( i ).setRank( i );
-    }
-
-    // Recombination is done in pairs
-    for( int i = 0;
-         i < theIndividuals.size() - 1;
-         i += 2 ) {
-      theIndividuals.get( i ).recombinate( theIndividuals.get( i + 1 ) );
+  private void setRanks() {
+    for( int i = 0; i < individuals.size(); i++ ) {
+      individuals.get( i ).setRank( i ); // package-private setter in Individual
     }
   }
 
+  // --------------------------------------------------------------------------------------------
+  // Recombination: pair adjacent by rank
+  // --------------------------------------------------------------------------------------------
   /**
-   * Mutate the individuals in the population based on their rank and mutation
-   * parameters.
+   * Rank-based pairing and uniform crossover:
+   * <ul>
+   * <li>Re-sort (via prior evaluate()) and set ranks.</li>
+   * <li>Pair (0,1), (2,3), …, calling {@code recombinate} for each pair.</li>
+   * </ul>
+   * This scheme is simple and stable; alternative pairing strategies (e.g.,
+   * random pairing) are possible but this version matches the reference
+   * implementation.
+   */
+  public void recombine() {
+    this.setRanks();
+    for( int i = 0; i < individuals.size() - 1; i += 2 ) {
+      individuals.get( i ).recombinate( individuals.get( i + 1 ) );
+    }
+  }
+
+  // --------------------------------------------------------------------------------------------
+  // Mutation: rank-based intensity schedule
+  // --------------------------------------------------------------------------------------------
+  /**
+   * Applies per-individual mutation intensity based on rank:
+   * <pre>
+   *   r_i   = i / N
+   *   beta  = ln(G / L) / ln(N - 1)
+   *   I_i   = G * (r_i)^{beta}
+   * </pre> Assumptions:
+   * <ul>
+   * <li>G = {@code globalSearchIntensity} > L = {@code localSearchIntensity},
+   * thus beta > 0.</li>
+   * <li>The best individual (i=0) receives I_0 = 0 (elite preservation).</li>
+   * <li>Each {@link Gene} interprets intensity consistently (e.g., step size /
+   * noise scale).</li>
+   * </ul>
    */
   public void mutate() {
-    // Set the rank for each individual (used for reporting purposes)
-    for( int i = 0;
-         i < theIndividuals.size();
-         i++ ) {
-      theIndividuals.get( i ).setRank( i );
-    }
-
-    // Apply mutation based on the individual's rank
-    for( int i = 0;
-         i < theIndividuals.size();
-         i++ ) {
-      double r = i / (double) theIndividuals.size();
-      theIndividuals.get( i ).mutate( maxMut * Math.pow( r,
-                                                         exponent ) );
+    this.setRanks();
+    int N = individuals.size();
+    for( int i = 0; i < N; i++ ) {
+      double r_i = i / (double) ( N - 1 ); // in [0, 1)
+      double intensity = globalSearchIntensity * Math.pow( r_i,
+                                                           mutationExponent );
+      individuals.get( i ).mutate( intensity );
     }
   }
 
+  // --------------------------------------------------------------------------------------------
+  // Accessors & diagnostics
+  // --------------------------------------------------------------------------------------------
   /**
-   * Get the fittest individual in the population.
-   *
-   * @return The fittest individual.
+   * @return the fittest (index 0) individual; requires the population to be
+   *         sorted descending.
    */
   public Individual getFittest() {
-    return theIndividuals.get( 0 );
+    return individuals.get( 0 );
   }
 
   /**
-   * Get a string representation of the population, including its mutation
-   * parameters.
-   *
-   * @return A string representing the population.
+   * Textual dump of mutation parameters followed by individuals from worst to
+   * best.
+   * <p>
+   * Useful for quick external inspection of the current state.</p>
    */
   @Override
   public String toString() {
-    StringBuilder s = new StringBuilder(
-                  "e:" + this.exponent + "\tm:" + this.maxMut + "\n" );
+    StringBuilder sb = new StringBuilder();
+    sb.append( "Mutation Exponent (beta): " ).append( this.mutationExponent )
+      .append( "\tMax Mutation Intensity (G): " ).append(
+      this.globalSearchIntensity )
+      .append( "\n" );
 
-    for( int i = theIndividuals.size() - 1;
-         i >= 0;
-         i-- ) {
-      s.append( i ).append( "\t" ).append( theIndividuals.get( i ) ).append(
-        "\n" );
+    // From worst (last) to best (0), mirroring the original implementation.
+    for( int i = individuals.size() - 1; i >= 0; i-- ) {
+      sb.append( i ).append( "\t" ).append( individuals.get( i ) )
+        .append( "\n" );
     }
-    return s.toString();
+    return sb.toString();
   }
 
   /**
-   * Get the mutation exponent parameter.
-   *
-   * @return The mutation exponent.
-   */
-  public double getExponent() {
-    return exponent;
-  }
-
-  /**
-   * Get the maximum mutation parameter.
-   *
-   * @return The maximum mutation parameter.
-   */
-  public double getMaxMutation() {
-    return maxMut;
-  }
-
-  /**
-   * Get the number of individuals in the population.
-   *
-   * @return The size of the population.
+   * @return current population size (N).
    */
   public int getSize() {
-    return this.theIndividuals.size();
+    return this.individuals.size();
   }
 
   /**
-   * Get an individual from the population by index.
-   *
-   * @param _i The index of the individual to retrieve.
-   *
-   * @return The individual at the specified index.
+   * Random-access getter for an individual by index.
+   * <p>
+   * Note: the logical “rank” equals the index only immediately after sorting &
+   * rank assignment.</p>
    */
-  public Individual getIndividual( int _i ) {
-    return this.theIndividuals.get( _i );
+  public Individual getIndividual( int index ) {
+    return this.individuals.get( index );
   }
 
 }
