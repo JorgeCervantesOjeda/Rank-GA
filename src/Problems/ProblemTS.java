@@ -80,9 +80,9 @@ public class ProblemTS
             genome[ j * n + i ].setIntValue( 0 );
           }
           result[ i ] += start[ j ]
-                         * genome[ j * n + i ].getIntValue();
+                         * (long) genome[ j * n + i ].getValue();
           cost += start[ j ]
-                  * genome[ j * n + i ].getIntValue()
+                  * genome[ j * n + i ].getValue()
                   * M[ j ][ i ];
         }
       }
@@ -108,8 +108,8 @@ public class ProblemTS
       for( int j = 0;
            j < n;
            j++ ) {
-        rowOnes[ i ] += genome[ i * n + j ].getIntValue();
-        colOnes[ j ] += genome[ i * n + j ].getIntValue();
+        rowOnes[ i ] += genome[ i * n + j ].getValue();
+        colOnes[ j ] += genome[ i * n + j ].getValue();
       }
     }
     long extraOnes = 0;
@@ -134,6 +134,16 @@ public class ProblemTS
 
   @Override
   public double fitness( Individual _i ) {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getGlobalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
     throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
   }
 

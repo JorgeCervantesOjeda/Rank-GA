@@ -37,7 +37,7 @@ public class ProblemDeceptive
     for( int i = 0;
          i < genome.length;
          i++ ) {
-      if( genome[ i ].getIntValue() > 0 ) {
+      if( genome[ i ].getValue() > 0 ) {
         count++;
       }
     }
@@ -50,6 +50,16 @@ public class ProblemDeceptive
 
   @Override
   public double fitness( Individual _i ) {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getGlobalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
     throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
   }
 

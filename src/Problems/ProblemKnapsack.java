@@ -6,12 +6,10 @@ import rankga.Individual;
 import rankga.Problem;
 
 /**
- * ProblemKnapsack - Defines a knapsack problem for use with genetic algorithms.
- * Implements the Problem interface, providing methods for generating
- * individuals, evaluating fitness, and setting up the knapsack environment.
+ * ProblemKnapsack - Defines a knapsack problem for use with genetic algorithms. Implements the Problem interface, providing methods for generating individuals,
+ * evaluating fitness, and setting up the knapsack environment.
  *
- * Author: Jorge Cervantes Affiliation: Universidad Autónoma Metropolitana,
- * Mexico City
+ * Author: Jorge Cervantes Affiliation: Universidad Autónoma Metropolitana, Mexico City
  */
 public class ProblemKnapsack
   implements Problem {
@@ -22,10 +20,10 @@ public class ProblemKnapsack
   private final int[] WEIGHT; // Array of item weights
   private final int[] VOLUME; // Array of item volumes
   private final int[] VALUE; // Array of item values
+  private final Random random;
 
   /**
-   * Constructor for the ProblemKnapsack class. Initializes the items with
-   * random weights, volumes, and values.
+   * Constructor for the ProblemKnapsack class. Initializes the items with random weights, volumes, and values.
    */
   public ProblemKnapsack() {
     WEIGHT_CAPACITY = 6000;
@@ -34,7 +32,7 @@ public class ProblemKnapsack
     WEIGHT = new int[ NUM_ITEMS ];
     VOLUME = new int[ NUM_ITEMS ];
     VALUE = new int[ NUM_ITEMS ];
-    Random random = new Random();
+    this.random = new Random();
 
     // Initialize weights, volumes, and values for each item
     System.out.println( "Weight Capacity: " + WEIGHT_CAPACITY );
@@ -73,7 +71,7 @@ public class ProblemKnapsack
     for( int i = 0;
          i < NUM_ITEMS;
          i++ ) {
-      if( individual.getGene( i ).getIntValue() != 0 ) { // If item is included
+      if( 0 != (int) individual.getGene( i ).getValue() ) { // If item is included
         countOnes++;
         totalWeight += WEIGHT[ i ];
         totalVolume += VOLUME[ i ];
@@ -96,6 +94,19 @@ public class ProblemKnapsack
     individual.appendExtraString(
       countOnes + "\t" + totalWeight + "\t" + totalVolume + "\t" + totalValue + "\tPenalty: " + penalty );
     return finalFitness; // Return the total value adjusted by penalties as the fitness score
+  }
+
+  @Override
+  public double getGlobalSearchIntensity() {
+    // mutation probability for global search
+    return 1 - 1 / this.getNewGene( false,
+                                    this.random ).getNumValues();
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
+    // mutation probability for local search
+    return 1 / this.getGenomeLength();
   }
 
   @Override

@@ -37,14 +37,14 @@ public class ProblemHillSideSearch
 
   private boolean isOptimum( Gene[] genome ) {
     int i = 0;
-    while( i < genome.length && genome[ i ].getIntValue() == 0 ) {
+    while( i < genome.length && genome[ i ].getValue() == 0 ) {
       i++;
     }
     if( i != optimumDistance ) {
       return false;
     }
 
-    while( i < genome.length && genome[ i ].getIntValue() == 1 ) {
+    while( i < genome.length && genome[ i ].getValue() == 1 ) {
       i++;
     }
     return i == genome.length;
@@ -61,7 +61,7 @@ public class ProblemHillSideSearch
     for( int i = 0;
          i < genome.length;
          i++ ) {
-      if( genome[ i ].getIntValue() > 0 ) {
+      if( genome[ i ].getValue() > 0 ) {
         count++;
       }
     }
@@ -79,6 +79,16 @@ public class ProblemHillSideSearch
 
   @Override
   public double fitness( Individual _i ) {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getGlobalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
     throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
   }
 

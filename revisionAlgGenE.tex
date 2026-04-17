@@ -1,0 +1,53 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage[spanish]{babel}
+\usepackage{csquotes}
+
+\title{Revisión de capítulo: ``Genetic Algorithms''}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section*{Resumen general}
+
+El capítulo ofrece una introducción amena a las heurísticas basadas en Algoritmos Genéticos (AG), proporcionando una explicación clara y concisa de los operadores fundamentales de selección, cruzamiento y mutación, así como de las variantes que suelen emplearse en el contexto de los AG. Asimismo, se abordan los fundamentos teóricos del Rank Genetic Algorithm (Rank GA) y se analizan sus aplicaciones en diversas áreas, prestando especial atención a su relevancia en la teoría de gráficas. El capítulo destaca la versatilidad de los AG como herramientas de optimización y su capacidad para abordar problemas complejos en múltiples dominios.
+
+A continuación, se describen algunas sugerencias y observaciones del capítulo que se someten a consideración de los autores.
+
+\section*{Comentario 1: definición de \textit{genotype size}}
+
+El concepto de \textit{genotype size} se utiliza en la sección \textbf{Rank-Based Mutation}, pero hasta ese punto del capítulo no se ha dado su definición.
+
+Sugerencia: agregar la definición de \textit{genotype size} en la sección \textbf{Genetic Algorithms}, que es la sección que incluye las definiciones de genotipo y genes.
+
+\section*{Comentario 2: explicación de \textit{uniform crossover}}
+
+En la sección \textbf{Rank-based Recombination}, se menciona el uso de la técnica de \textit{uniform crossover}. Si bien actualmente en la sección \textbf{Crossover Recombination} se incluye una explicación detallada de \textit{one-point crossover}, no se aclara cómo funciona \textit{uniform crossover} (aunque sí se menciona como una de las variantes de la recombinación basada en el rango).
+
+Sugerencia: añadir una explicación breve de \textit{uniform crossover} en la sección \textbf{Rank-based Recombination}.
+
+\section*{Comentario 3: incisos de la figura 1.5}
+
+En la sección \textbf{Exploration and Exploitation}, se hace referencia a los incisos a), b), c) y d) de la figura 1.5 (correspondientes a 4 subfiguras). Actualmente, la figura 1.5 no incluye un \textit{caption} que indique explícitamente dichos incisos.
+
+Sugerencia: añadir explícitamente los incisos a), b), c) y d) para cada subfigura para facilitar la lectura del capítulo.
+
+\section*{Comentario 4: remover palabra ``text'' de sobra}
+
+En la sección \textbf{Rank-based Selection}, en el tercer párrafo dice: 
+
+``the floor of text \( \text{cloneNbr}_{i} \)'', \\
+pero debería ser:
+
+``the floor of \( \text{cloneNbr}_{i} \)'' (remover la palabra ``text'').
+
+\section*{Conclusiones}
+
+La presentación del capítulo es amena y concisa. Los ejemplos y figuras presentados facilitan la comprensión del capítulo. El contenido del capítulo es una excelente introducción a las heurísticas basadas en algoritmos genéticos.
+
+\end{document}

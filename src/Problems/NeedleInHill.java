@@ -40,7 +40,7 @@ public class NeedleInHill
     int i;
     countOnes = 0;
     for( i = 0;
-         i < GENOME_LENGTH && genome[ i ].getIntValue() == 1;
+         i < GENOME_LENGTH && (int) genome[ i ].getValue() == 1;
          i++ ) {
       countOnes++;
     }
@@ -50,7 +50,7 @@ public class NeedleInHill
       // cadena candidata a ser la aguja
       // falta ver si tiene puros ceros en el resto de la cadena
       for( ;
-        i < GENOME_LENGTH && genome[ i ].getIntValue() == 0;
+        i < GENOME_LENGTH && (int) genome[ i ].getValue() == 0;
         i++ )
                 ;
       if( i == GENOME_LENGTH ) // es la aguja (óptimo global)
@@ -63,7 +63,7 @@ public class NeedleInHill
     for( i = 0;
          i < GENOME_LENGTH;
          i++ ) {
-      if( genome[ i ].getIntValue() > 0 ) {
+      if( 0 < (int) genome[ i ].getValue() ) {
         countOnes++;
       }
     }
@@ -86,6 +86,16 @@ public class NeedleInHill
 
   @Override
   public double fitness( Individual _i ) {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getGlobalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
     throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
   }
 

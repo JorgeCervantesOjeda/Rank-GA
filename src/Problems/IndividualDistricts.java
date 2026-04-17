@@ -132,7 +132,7 @@ public class IndividualDistricts
          sectionId++ ) {
       if( !visitedSection[ sectionId ] ) {
 
-        int districtId = this.genome[ sectionId ].getIntValue();
+        int districtId = (int) this.genome[ sectionId ].getValue();
         int numDistrictSections = this.countSections( districtId );
 
 //        System.out.print(
@@ -170,7 +170,7 @@ public class IndividualDistricts
     for( int i = 0;
          i < this.pd.NUM_SECTIONS;
          i++ ) {
-      if( this.genome[ i ].getIntValue() == district ) {
+      if( district == (int) this.genome[ i ].getValue() ) {
         count++;
       }
     }
@@ -200,7 +200,7 @@ public class IndividualDistricts
       if( this.visitedSection[ neighborSectionId ] ) {
         continue;
       }
-      if( districtId == this.genome[ neighborSectionId ].getIntValue() ) {
+      if( districtId == (int) this.genome[ neighborSectionId ].getValue() ) {
         // mark
         this.visitedSection[ neighborSectionId ] = true;
         count++;
@@ -235,7 +235,7 @@ public class IndividualDistricts
       if( this.mutatedSection[ neighborSectionId ] ) {
         continue;
       }
-      if( districtId == this.genome[ neighborSectionId ].getIntValue() ) {
+      if( districtId == (int) this.genome[ neighborSectionId ].getValue() ) {
         count += this.mutateExclave( neighborSectionId,
                                      districtId,
                                      depth + 1 );

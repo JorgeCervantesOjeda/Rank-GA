@@ -53,10 +53,10 @@ public class ProblemPseudoachromaticIndex
     for( int edge = 0;
          edge < numEdges;
          edge++ ) {
-      if( usedColors[ individual.getGene( edge ).getIntValue() ] == 0 ) {
+      if( usedColors[ (int) individual.getGene( edge ).getValue() ] == 0 ) {
         colorCount++;
       }
-      usedColors[ individual.getGene( edge ).getIntValue() ] = 1;
+      usedColors[ (int) individual.getGene( edge ).getValue() ] = 1;
     }
     // set connected vertices
     int edge = 0;
@@ -66,9 +66,9 @@ public class ProblemPseudoachromaticIndex
       for( int end = origin + 1;
            end < numVertices;
            end++ ) {
-        if( usedColors[ individual.getGene( edge ).getIntValue() ] > 0 ) {
-          connectedVertices[ individual.getGene( edge ).getIntValue() ][ origin ] = 1;
-          connectedVertices[ individual.getGene( edge ).getIntValue() ][ end ] = 1;
+        if( usedColors[ (int) individual.getGene( edge ).getValue() ] > 0 ) {
+          connectedVertices[ (int) individual.getGene( edge ).getValue() ][ origin ] = 1;
+          connectedVertices[ (int) individual.getGene( edge ).getValue() ][ end ] = 1;
         }
         edge++;
       }
@@ -106,6 +106,16 @@ public class ProblemPseudoachromaticIndex
     individual.appendExtraString(
       " " + colorCount + "_" + penalty + "_" + individual.avg() );
     return colorCount - penalty * weight;
+  }
+
+  @Override
+  public double getGlobalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
   }
 
   @Override

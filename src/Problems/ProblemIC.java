@@ -47,7 +47,7 @@ public class ProblemIC
     for( int i = 0;
          i < graph.getVerticesCount();
          i++ ) {
-      size += individual.getGene( i ).getIntValue();
+      size += individual.getGene( i ).getValue();
     }
     return -size - penalty * 2; // Apply a penalty factor
   }
@@ -59,7 +59,7 @@ public class ProblemIC
     for( int i = 0;
          i < length;
          i++ ) {
-      bits[ i ] = ( individual.getGene( i ).getIntValue() != 0 );
+      bits[ i ] = ( individual.getGene( i ).getValue() != 0 );
     }
 
     // Penalty for non-dominating set
@@ -83,12 +83,14 @@ public class ProblemIC
         final int indexI = i;
         final int indexJ = j;
         if( !bits[ indexI ] && !bits[ indexJ ] ) {
-          boolean iHasNeighborInSet = graph.getNeighbors( indexI ).stream().anyMatch(
-                  neighbor
-                  -> bits[ neighbor ] );
-          boolean jHasNeighborInSet = graph.getNeighbors( indexJ ).stream().anyMatch(
-                  neighbor
-                  -> bits[ neighbor ] );
+          boolean iHasNeighborInSet = graph.getNeighbors( indexI ).stream()
+                  .anyMatch(
+                    neighbor
+                    -> bits[ neighbor ] );
+          boolean jHasNeighborInSet = graph.getNeighbors( indexJ ).stream()
+                  .anyMatch(
+                    neighbor
+                    -> bits[ neighbor ] );
 
           if( iHasNeighborInSet && jHasNeighborInSet ) {
             boolean distinctIntersections =
@@ -117,6 +119,16 @@ public class ProblemIC
     individual.setExtraString( s );
 
     return penalty;
+  }
+
+  @Override
+  public double getGlobalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
   }
 
   @Override

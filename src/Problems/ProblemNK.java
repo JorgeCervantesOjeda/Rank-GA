@@ -75,6 +75,16 @@ public class ProblemNK
   }
 
   @Override
+  public double getGlobalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
   public String getProblemName() {
     return "NK_" + N + "_" + K + "_" + System.currentTimeMillis();
   }
@@ -124,7 +134,8 @@ public class ProblemNK
          i < K;
          i++ ) {
       // Use modulo to wrap around the genome for neighbors
-      value = ( value << 1 ) | individual.getGene( ( n + i ) % N ).getIntValue();
+      value = ( value << 1 ) | (int) individual.getGene( ( n + i ) % N )
+      .getValue();
     }
     return value;
   }

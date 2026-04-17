@@ -124,12 +124,12 @@ public class ProblemTS_Simple
                          StringBuilder extraString ) {
     double cost = 0.0;
     int coverage[] = new int[ n ];
-    int orig = genome[ n - 1 ].getIntValue();
+    int orig = (int) genome[ n - 1 ].getValue();
 
     for( int step = 0;
          step < n;
          step++ ) {
-      int dest = genome[ step ].getIntValue();
+      int dest = (int) genome[ step ].getValue();
       coverage[ dest ]++;
       cost += M[ orig ][ dest ];
       orig = dest;
@@ -150,6 +150,16 @@ public class ProblemTS_Simple
 
   @Override
   public double fitness( Individual _i ) {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getGlobalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
     throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
   }
 

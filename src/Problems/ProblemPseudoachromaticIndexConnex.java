@@ -76,7 +76,7 @@ public class ProblemPseudoachromaticIndexConnex
       for( int vertexB = vertexA + 1;
            vertexB < numVertices;
            vertexB++ ) {
-        int edgeColor = individual.getGene( edge ).getIntValue();
+        int edgeColor = (int) individual.getGene( edge ).getValue();
         if( !isUsedColor[ edgeColor ] ) {
           colorCount++;
         }
@@ -138,7 +138,7 @@ public class ProblemPseudoachromaticIndexConnex
     for( int i = 0;
          i < this.getGenomeLength();
          i++ ) {
-      colorHistogram[ individual.getGene( i ).getIntValue() ]++;
+      colorHistogram[ (int) individual.getGene( i ).getValue() ]++;
     }
     double std = calculateStandardDeviation( colorHistogram );
     double avg = calculateAverage( individual );
@@ -172,6 +172,16 @@ public class ProblemPseudoachromaticIndexConnex
       return colorCount;
     }
     return fitness;
+  }
+
+  @Override
+  public double getGlobalSearchIntensity() {
+    return 1 / (double) numColors;
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
+    return 1 / (double) getGenomeLength();
   }
 
   @Override
@@ -251,8 +261,7 @@ public class ProblemPseudoachromaticIndexConnex
       if( i < this.getGenomeLength() ) {
         throw new IllegalArgumentException( "Not enough integers in the file." );
       }
-    }
-    catch( Exception ex ) {
+    } catch( Exception ex ) {
       System.out.println( ex );
     }
 
@@ -353,8 +362,9 @@ public class ProblemPseudoachromaticIndexConnex
       i = j;
       j = aux;
     }
-    return individual.getGene(
-      i * ( numVertices - 1 ) + j - ( i + 1 ) * ( i + 2 ) / 2 + i ).getIntValue();
+    return (int) individual.getGene(
+      i * ( numVertices - 1 ) + j - ( i + 1 ) * ( i + 2 ) / 2 + i
+    ).getValue();
   }
 
   /**
@@ -392,7 +402,7 @@ public class ProblemPseudoachromaticIndexConnex
     for( int i = 0;
          i < this.getGenomeLength();
          i++ ) {
-      sum += individual.getGene( i ).getIntValue();
+      sum += individual.getGene( i ).getValue();
     }
     return sum / this.getGenomeLength();
   }

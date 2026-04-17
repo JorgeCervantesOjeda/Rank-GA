@@ -137,10 +137,10 @@ public class ProblemTS_Jumps
     long visitas = 0;
     int coverage[] = new int[ n ];
     int pos = 0;
-    int orig = genome[ pos ].getIntValue();
+    int orig = (int) genome[ pos ].getValue();
     if( orig >= n ) {
       pos = orig % n;
-      orig = genome[ pos ].getIntValue() % n;
+      orig = (int) genome[ pos ].getValue() % n;
     }
     pos = ( pos + 1 ) % ( 2 * n );
 
@@ -151,10 +151,10 @@ public class ProblemTS_Jumps
     for( int step = 0;
          step < n;
          step++ ) {
-      next = genome[ pos ].getIntValue();
+      next = (int) genome[ pos ].getValue();
       if( next >= n ) {
         pos = next % n;
-        next = genome[ pos ].getIntValue() % n;
+        next = (int) genome[ pos ].getValue() % n;
       }
       pos = ( pos + 1 ) % ( 2 * n );
 
@@ -179,6 +179,16 @@ public class ProblemTS_Jumps
                              cost )
       + " " + visitas );
     return cov * this.covWeight - cost;
+  }
+
+  @Override
+  public double getGlobalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
   }
 
   @Override

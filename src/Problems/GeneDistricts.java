@@ -39,7 +39,7 @@ public class GeneDistricts
     int sectionId = s.adjoinings.get( index ).sectionId;
 
     // mutate to neighbor's district
-    this.value = genome[ sectionId ].getIntValue();
+    this.value = (int) genome[ sectionId ].getValue();
   }
 
 }

@@ -54,11 +54,11 @@ public class ProblemNIAH
            i < GENOME_LENGTH / NUM_BLOCKS;
            i++ ) {
         index = ( index << 1 )
-                | individual
+                | (int) individual
           .getGene( block * GENOME_LENGTH / NUM_BLOCKS + i )
-          .getIntValue();
+          .getValue();
         if( individual.getGene( block * GENOME_LENGTH / NUM_BLOCKS + i )
-          .getIntValue() > 0 ) {
+          .getValue() > 0 ) {
           count++;
         }
       }
@@ -74,6 +74,16 @@ public class ProblemNIAH
     individual.appendExtraString(
       "" + countOnes + "_" + stats[ index ] / (double) countEvals );
     return sum;
+  }
+
+  @Override
+  public double getGlobalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
   }
 
   @Override

@@ -44,6 +44,16 @@ public class ProblemDistricts
   }
 
   @Override
+  public double getGlobalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  }
+
+  @Override
   public String getProblemName() {
     throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
   }
@@ -275,7 +285,7 @@ public class ProblemDistricts
     double sum = s.border;
     for( Adjoining a
          : s.adjoinings ) {
-      int otherClusterId = genome[ a.sectionId ].getIntValue();
+      int otherClusterId = (int) genome[ a.sectionId ].getValue();
       if( clusterId != otherClusterId ) {
         sum += a.borderLength;
       }
@@ -347,7 +357,7 @@ public class ProblemDistricts
          i++ ) {
       Point point = new Point( sections[ i ].x,
                                sections[ i ].y );
-      int clusterId = genome[ i ].getIntValue();
+      int clusterId = (int) genome[ i ].getValue();
 
       clusters.get( clusterId ).add( point );
       populations.set( clusterId,
@@ -403,7 +413,7 @@ public class ProblemDistricts
     for( int sectionId = 0;
          sectionId < this.NUM_SECTIONS;
          sectionId++ ) {
-      int clusterId = genome[ sectionId ].getIntValue();
+      int clusterId = (int) genome[ sectionId ].getValue();
       areas[ clusterId ] += sections[ sectionId ].area;
       perimeters[ clusterId ] += sectionBordersExcluding( sections[ sectionId ],
                                                           clusterId,
