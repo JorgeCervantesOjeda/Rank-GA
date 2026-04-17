@@ -48,11 +48,6 @@ public class ProblemKnapsack
     }
   }
 
-  @Override
-  public void adapt( double bestFitness ) {
-    // No adaptation behavior defined for this problem
-  }
-
   /**
    * Calculate the fitness of a given individual.
    *

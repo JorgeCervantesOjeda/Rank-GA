@@ -8,6 +8,7 @@ package Problems;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.Random;
+import rankga.AdaptiveProblem;
 import rankga.Gene;
 import rankga.Individual;
 import rankga.Problem;
@@ -17,7 +18,8 @@ import rankga.Problem;
  * @author usuario
  */
 public class ProblemPseudoachromaticIndex
-  implements Problem {
+  implements Problem,
+             AdaptiveProblem {
 
   private int numVertices;
   private int numEdges;

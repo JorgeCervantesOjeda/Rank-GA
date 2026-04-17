@@ -3,22 +3,16 @@ package rankga;
 import java.util.Random;
 
 /**
- * Problem — Interface for Optimization Problems.
+ * Problem - Interface for Optimization Problems.
  *
- * Defines the contract for problems solvable by the RankGA framework. A problem
- * must provide fitness evaluation, optional parameter adaptation, and factories
- * for individuals and genes.
+ * Defines the base contract for problems solvable by the RankGA framework. A
+ * problem must provide fitness evaluation and factories for individuals and
+ * genes. Problems with runtime adaptation can additionally implement
+ * {@link AdaptiveProblem}.
  *
- * Author: Jorge Cervantes — Universidad Autónoma Metropolitana, Mexico City
+ * Author: Jorge Cervantes - Universidad Autónoma Metropolitana, Mexico City
  */
 public interface Problem {
-
-  /**
-   * Adapt problem-specific parameters based on the current best fitness.
-   *
-   * @param bestFitness best fitness value observed so far
-   */
-  void adapt( double bestFitness );
 
   /**
    * Compute the fitness of the given individual.

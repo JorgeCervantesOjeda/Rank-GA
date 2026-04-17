@@ -360,10 +360,6 @@ public class ProblemHeawoodRainbow
 
   }
 
-  @Override
-  public void adapt(double _bestFitness) {
-  }
-
   public double fRainbow(StringBuilder extraString) {
     double result = 1;
     countNodePairsOK = 0;

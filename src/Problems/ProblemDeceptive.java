@@ -26,11 +26,6 @@ public class ProblemDeceptive
     BASIN_WIDTH = basinWidth;
   }
 
-  @Override
-  public void adapt( double _bestFitness ) {
-    // Static landscape; nothing to adapt.
-  }
-
   public double fitness( Gene[] genome,
                          StringBuilder extraString ) {
     int count = 0;

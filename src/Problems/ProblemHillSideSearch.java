@@ -50,11 +50,6 @@ public class ProblemHillSideSearch
     return i == genome.length;
   }
 
-  @Override
-  public void adapt( double _bestFitness ) {
-    // Static fitness landscape; nothing to adapt.
-  }
-
   public double fitness( Gene[] genome,
                          StringBuilder extraString ) {
     int count = 0;

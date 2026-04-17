@@ -36,10 +36,6 @@ public class ProblemNIAH
   }
 
   @Override
-  public void adapt( double _bestFitness ) {
-  }
-
-  @Override
   public double fitness( Individual individual ) {
     double sum = 0;
     int countOnes = 0;

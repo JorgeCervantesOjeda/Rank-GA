@@ -29,11 +29,6 @@ public class NeedleInHill
     HAMM_DIST_OF_NEEDLE = hammDistOfNeedle;
   }
 
-  @Override
-  public void adapt( double _bestFitness ) {
-    // No adaptive parameters in this landscape.
-  }
-
   public double fitness( Gene[] genome,
                          StringBuilder extraString ) {
     int i;

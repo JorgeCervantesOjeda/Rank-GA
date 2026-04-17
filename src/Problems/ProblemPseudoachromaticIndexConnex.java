@@ -3,6 +3,7 @@ package Problems;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.Random;
+import rankga.AdaptiveProblem;
 import rankga.Gene;
 import rankga.Individual;
 import rankga.Problem;
@@ -17,7 +18,8 @@ import rankga.Problem;
  * Mexico City
  */
 public class ProblemPseudoachromaticIndexConnex
-  implements Problem {
+  implements Problem,
+             AdaptiveProblem {
 
   // Problem-specific parameters
   private final int numVertices;

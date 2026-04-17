@@ -34,11 +34,6 @@ public class ProblemDistricts
   private Section[] sections;
 
   @Override
-  public void adapt( double _bestFitness ) {
-    // Fixed input data; no adaptive parameters.
-  }
-
-  @Override
   public double fitness( Individual _i ) {
     Gene[] genome = new Gene[ this.getGenomeLength() ];
     for( int i = 0; i < genome.length; i++ ) {

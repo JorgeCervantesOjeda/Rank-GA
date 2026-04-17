@@ -36,11 +36,6 @@ public class ProblemIC
   }
 
   @Override
-  public void adapt( double bestFitness ) {
-    // Binary landscape with fixed constraints.
-  }
-
-  @Override
   public double fitness( Individual individual ) {
     int penalty = calculatePenalty( individual );
     int size = 0;

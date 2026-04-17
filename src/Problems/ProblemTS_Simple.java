@@ -116,10 +116,6 @@ public class ProblemTS_Simple
     }
   }
 
-  @Override
-  public void adapt( double _bestFitness ) {
-  }
-
   public double fitness( Gene[] genome,
                          StringBuilder extraString ) {
     double cost = 0.0;

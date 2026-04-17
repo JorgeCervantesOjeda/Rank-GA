@@ -26,8 +26,9 @@ import static rankga.ConvertTime.convertMillisToTimeFormat;
  * uniform crossover.</li>
  * <li><b>Mutation</b>: per-individual <em>intensity</em> I<sub>i</sub> = G ·
  * (rank)<sup>β</sup>, β = ln(G/L)/ln(N−1).</li>
- * <li><b>Adaptation</b>: allow the problem to adjust its internal parameters
- * based on the current best fitness.</li>
+ * <li><b>Adaptation</b>: if the problem implements
+ * {@link AdaptiveProblem}, allow it to adjust its internal parameters based on
+ * the current best fitness.</li>
  * <li><b>Termination</b>: stop when (a) no improvement has occurred for a given
  * patience window, or (b) the problem’s goal fitness is reached.</li>
  * </ol>
@@ -137,8 +138,10 @@ public class RankGA {
         // Emit periodic lightweight progress lines (not full snapshots).
         displayProgress();
 
-        // Allow the problem to adapt (e.g., schedules, penalties) based on current best fitness.
-        problem.adapt( lastBest.getFitness() );
+        // Allow only adaptive problems to adjust internal parameters.
+        if( problem instanceof AdaptiveProblem ) {
+          ( (AdaptiveProblem) problem ).adapt( lastBest.getFitness() );
+        }
 
         // Loop until: (a) no improvement for PATIENCE window, or (b) goal fitness reached.
       } while( ( now.getTime() - notImproved.getTime() ) < PATIENCE

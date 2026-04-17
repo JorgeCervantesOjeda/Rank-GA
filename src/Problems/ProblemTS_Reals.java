@@ -127,10 +127,6 @@ public class ProblemTS_Reals
   }
 
   @Override
-  public void adapt( double _bestFitness ) {
-  }
-
-  @Override
   public double fitness( Individual _i ) {
     double sum = 0.0;
     double sumSqr = 0.0;

@@ -178,7 +178,7 @@ public class Population {
   /**
    * Rank-based selection via expected clone counts:
    * <pre>
-   *   r_i = i / N
+   *   r_i = i / (N - 1)
    *   E[clones_i] = c_i = S * (1 - r_i)^{S - 1}
    * </pre>
    *
@@ -219,7 +219,8 @@ public class Population {
     // 2) Stochastic rounding of the fractional parts to reach exactly N clones.
     while( totalClones < numIndividuals ) {
       for( int i = 0; i < numIndividuals && totalClones < numIndividuals; i++ ) {
-        double r_i = i / (double) numIndividuals;
+        // Use the same rank convention as the deterministic pass.
+        double r_i = i / (double) ( numIndividuals - 1 );
         double c_i = SELECTION_PRESSURE * Math.pow( 1 - r_i,
                                                     SELECTION_PRESSURE - 1 );
         double fractional = c_i - Math.floor( c_i );

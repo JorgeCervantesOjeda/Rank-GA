@@ -92,11 +92,6 @@ public class ProblemTaskAssignment
   }
 
   @Override
-  public void adapt( double bestFitness ) {
-    // No adaptation needed as parameters are fixed after initialization.
-  }
-
-  @Override
   public double fitness( Individual individual ) {
     double totalBenefit = 0;
     double[] totalCost = new double[ this.numAgents ];
@@ -147,7 +142,9 @@ public class ProblemTaskAssignment
 
   @Override
   public double getGlobalSearchIntensity() {
-    return 0.5; //3 * this.getLocalSearchIntensity();
+    // Categorical gene: once a locus mutates, it can jump to any other value
+    // in the domain {0, ..., numAgents}.
+    return 1.0 - 1.0 / ( this.numAgents + 1 );
   }
 
   @Override
@@ -168,8 +165,9 @@ public class ProblemTaskAssignment
   @Override
   public Gene getNewGene( boolean randomize,
                           Random r ) {
+    // randomize=false keeps the task initially unassigned (0).
     return new GeneInteger( this.numAgents + 1,
-                            true,
+                            randomize,
                             r );
   }
 

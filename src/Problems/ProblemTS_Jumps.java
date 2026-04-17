@@ -117,10 +117,6 @@ public class ProblemTS_Jumps
     this.covWeight = promedio * 5;
   }
 
-  @Override
-  public void adapt( double _bestFitness ) {
-  }
-
   public double fitness( Gene[] genome,
                          StringBuilder extraString ) {
     return fitnessJumps( genome,
