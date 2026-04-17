@@ -1,11 +1,11 @@
 package rankga;
 
-import Problems.*;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Date;
+import java.util.Map;
 import java.util.Random;
 import static rankga.ConvertTime.convertMillisToTimeFormat;
 
@@ -50,8 +50,8 @@ import static rankga.ConvertTime.convertMillisToTimeFormat;
  * sorting.</li>
  * <li>Patience counts wall-clock time without improvement of the <em>best</em>
  * individual (and with a non-zero genotype distance).</li>
- * <li>The example uses {@code ProblemTS_Reals}; plug in your own
- * {@link Problem} as needed.</li>
+ * <li>The default launch problem is selected via {@code --problem}; if absent,
+ * {@code ts-reals} is used.</li>
  * </ul>
  *
  * Author: Jorge Cervantes — Universidad Autónoma Metropolitana, Mexico City
@@ -99,22 +99,56 @@ public class RankGA {
   // Entry point
   // --------------------------------------------------------------------------------------------
   public static void main( String[] args ) {
-    // 1) Select the problem to optimize (plug your own implementation here).
-    Problem problem = new ProblemTS_Reals();
+    Map<String, String> options = ProblemFactory.parseArguments( args );
+    String problemId = options.getOrDefault( "problem",
+                                             "ts-reals" );
 
+    if( options.containsKey( "help" )
+        || "help".equals( problemId ) ) {
+      printUsage();
+      return;
+    }
+
+    int populationSize = ProblemFactory.readIntOption( options,
+                                                       "population",
+                                                       20 );
+    int repetitions = ProblemFactory.readIntOption( options,
+                                                    "repetitions",
+                                                    10 );
+
+    Problem problem = ProblemFactory.create( problemId,
+                                             options );
+    run( problem,
+         populationSize,
+         repetitions );
+  }
+
+  /**
+   * Execute a full Rank-GA run for a selected problem.
+   *
+   * @param problem owning problem
+   * @param populationSize population size N
+   * @param repetitions number of full runs
+   */
+  public static void run( Problem problem,
+                          int populationSize,
+                          int repetitions ) {
     // Unique name for logs (problem name + timestamp).
     String problemRunName = problem.getProblemName() + "_" + System
            .currentTimeMillis();
 
     System.out.println( "Patience: " + convertMillisToTimeFormat( PATIENCE ) );
     System.out.println( "Problem: " + problemRunName );
+    System.out.println( "Population: " + populationSize );
+    System.out.println( "Repetitions: " + repetitions );
 
-    // 2) Outer loop: repeat full runs to assess robustness / variance.
-    for( repetition = 0; repetition < 10; repetition++ ) {
+    // Outer loop: repeat full runs to assess robustness / variance.
+    for( repetition = 0; repetition < repetitions; repetition++ ) {
 
       // --- Reset run-level clocks/state -------------------------------------------------------
       startTime = new Date();
-      initializePopulation( problem );
+      initializePopulation( problem,
+                           populationSize );
       lastBest = problem.getNewIndividual( population.getFittest() ); // deep copy of current best
       generation = 1;
       notImproved = new Date();
@@ -159,16 +193,15 @@ public class RankGA {
   /**
    * Creates a fresh population and evaluates it (so it starts sorted).
    * <p>
-   * Population size is currently fixed to 20 for the example; adjust as
-   * needed.</p>
+   * Population size is supplied by the launcher.</p>
    */
-  private static void initializePopulation( Problem problem ) {
-    population = new Population(
-    20,          // N (population size)
-    problem,
-    true,        // randomize initial genomes
-    new Random() // PRNG
-  );
+  private static void initializePopulation( Problem problem,
+                                            int populationSize ) {
+    population = new Population( populationSize,
+                                 problem,
+                                 true,        // randomize initial genomes
+                                 new Random() // PRNG
+    );
     population.evaluate(); // compute fitness and sort descending
   }
 
@@ -346,6 +379,19 @@ public class RankGA {
     } catch( IOException e ) {
       System.out.println( e );
     }
+  }
+
+  /**
+   * Print a compact usage summary for the command-line launcher.
+   */
+  private static void printUsage() {
+    System.out.println(
+      "Usage: java rankga.RankGA [--problem=name] [--population=N] [--repetitions=R] [--param=value...]" );
+    System.out.println( "Problems: " + ProblemFactory.availableProblems() );
+    System.out.println( "Examples:" );
+    System.out.println( "  java rankga.RankGA" );
+    System.out.println( "  java rankga.RankGA --problem=heawood --colors=3" );
+    System.out.println( "  java rankga.RankGA ts-reals --population=30 --repetitions=5" );
   }
 
 }
