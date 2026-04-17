@@ -38,6 +38,10 @@ public class ProblemHeawoodRainbow
   // private int[] parejasOK;
 
   public ProblemHeawoodRainbow( int num_colors ) {
+    if( num_colors < 2 ) {
+      throw new IllegalArgumentException(
+        "Heawood rainbow requires at least 2 colors" );
+    }
 
     this.NUM_COLORS = num_colors;
 
@@ -461,8 +465,15 @@ public class ProblemHeawoodRainbow
 
   @Override
   public double fitness(Individual _i) {
-    throw new UnsupportedOperationException("Not supported yet."); // To change body of generated methods, choose Tools
-                                                                   // | Templates.
+    Gene[] genome = new Gene[ this.getGenomeLength() ];
+    for( int i = 0; i < genome.length; i++ ) {
+      genome[ i ] = _i.getGene( i );
+    }
+    StringBuilder extraString = new StringBuilder();
+    double ft = this.fitness( genome,
+                              extraString );
+    _i.setExtraString( extraString );
+    return ft;
   }
 
   public String getExtraString(int[] parejasOK) {
@@ -480,14 +491,15 @@ public class ProblemHeawoodRainbow
 
   @Override
   public double getGlobalSearchIntensity() {
-    throw new UnsupportedOperationException("Not supported yet."); // To change body of generated methods, choose Tools
-                                                                   // | Templates.
+    // For categorical genes, this makes a mutated locus uniformly distributed
+    // over the full color set: P(stay) = 1 / NUM_COLORS.
+    return 1.0 - 1.0 / this.NUM_COLORS;
   }
 
   @Override
   public double getLocalSearchIntensity() {
-    throw new UnsupportedOperationException("Not supported yet."); // To change body of generated methods, choose Tools
-                                                                   // | Templates.
+    // Minimal relevant mutation: roughly one changed locus per genome.
+    return 1.0 / this.getGenomeLength();
   }
 
   @Override

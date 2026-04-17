@@ -35,27 +35,35 @@ public class ProblemDistricts
 
   @Override
   public void adapt( double _bestFitness ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    // Fixed input data; no adaptive parameters.
   }
 
   @Override
   public double fitness( Individual _i ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    Gene[] genome = new Gene[ this.getGenomeLength() ];
+    for( int i = 0; i < genome.length; i++ ) {
+      genome[ i ] = _i.getGene( i );
+    }
+    StringBuilder extraString = new StringBuilder();
+    double ft = this.fitness( genome,
+                              extraString );
+    _i.setExtraString( extraString );
+    return ft;
   }
 
   @Override
   public double getGlobalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return 1.0 / this.NUM_DISTRICTS;
   }
 
   @Override
   public double getLocalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return 1.0 / this.NUM_SECTIONS;
   }
 
   @Override
   public String getProblemName() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return "Districts_" + this.NUM_SECTIONS + "_" + this.NUM_DISTRICTS;
   }
 
   public Section[] getSections() {

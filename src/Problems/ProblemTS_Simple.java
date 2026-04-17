@@ -150,17 +150,29 @@ public class ProblemTS_Simple
 
   @Override
   public double fitness( Individual _i ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    Gene[] genome = new Gene[ this.getGenomeLength() ];
+    for( int i = 0; i < genome.length; i++ ) {
+      genome[ i ] = _i.getGene( i );
+    }
+    StringBuilder extraString = new StringBuilder();
+    double ft = this.fitness( genome,
+                              extraString );
+    _i.setExtraString( extraString );
+    return ft;
   }
 
   @Override
   public double getGlobalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    // Global exploration: a mutated locus is effectively free to jump anywhere.
+    double genomeLength = this.getGenomeLength();
+    return 1.0 - 1.0 / genomeLength;
   }
 
   @Override
   public double getLocalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    // Minimal relevant mutation: about one locus changed per genome on average.
+    double genomeLength = this.getGenomeLength();
+    return 1.0 / genomeLength;
   }
 
   @Override

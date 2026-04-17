@@ -52,7 +52,7 @@ public class ProblemHillSideSearch
 
   @Override
   public void adapt( double _bestFitness ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    // Static fitness landscape; nothing to adapt.
   }
 
   public double fitness( Gene[] genome,
@@ -79,22 +79,34 @@ public class ProblemHillSideSearch
 
   @Override
   public double fitness( Individual _i ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    Gene[] genome = new Gene[ this.getGenomeLength() ];
+    for( int i = 0; i < genome.length; i++ ) {
+      genome[ i ] = _i.getGene( i );
+    }
+    StringBuilder extraString = new StringBuilder();
+    double ft = this.fitness( genome,
+                              extraString );
+    _i.setExtraString( extraString );
+    return ft;
   }
 
   @Override
   public double getGlobalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return 0.5;
   }
 
   @Override
   public double getLocalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return 1.0 / this.getGenomeLength();
   }
 
   @Override
   public String getProblemName() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return "HillSideSearch_"
+           + this.genomeSize + "_"
+           + this.basinWidth + "_"
+           + this.basinSlope + "_"
+           + this.optimumDistance;
   }
 
   @Override
@@ -128,12 +140,14 @@ public class ProblemHillSideSearch
   @Override
   public Individual getNewIndividual( boolean _randomize,
                                       Random _r ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return new Individual( this,
+                           _randomize,
+                           _r );
   }
 
   @Override
   public Individual getNewIndividual( Individual _get ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return new Individual( _get );
   }
 
 }

@@ -37,12 +37,13 @@ public final class GeneDoublePrecision
 
   @Override
   public int getNumValues() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    // Real-valued genes do not have a finite cardinality.
+    return -1;
   }
 
   @Override
   public void setNumValues( int _numValues ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    // Continuous genes ignore cardinality updates by design.
   }
 
   @Override

@@ -129,7 +129,15 @@ public class ProblemTS_Jumps
 
   @Override
   public double fitness( Individual _i ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    Gene[] genome = new Gene[ this.getGenomeLength() ];
+    for( int i = 0; i < genome.length; i++ ) {
+      genome[ i ] = _i.getGene( i );
+    }
+    StringBuilder extraString = new StringBuilder();
+    double ft = this.fitness( genome,
+                              extraString );
+    _i.setExtraString( extraString );
+    return ft;
   }
 
   public double fitnessJumps( Gene[] genome,
@@ -183,12 +191,14 @@ public class ProblemTS_Jumps
 
   @Override
   public double getGlobalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    double genomeLength = this.getGenomeLength();
+    return 1.0 / genomeLength;
   }
 
   @Override
   public double getLocalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    double genomeLength = this.getGenomeLength();
+    return 1.0 / ( genomeLength * genomeLength );
   }
 
   @Override

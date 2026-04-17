@@ -19,20 +19,19 @@ public class NeedleInHill
   int GENOME_LENGTH;
   private int countOnes;
 
-  public void NeedleInHill( int genomeLength,
-                            int plateauWidth,
-                            int hillsideWidth,
-                            int hammDistOfNeedle ) {
+  public NeedleInHill( int genomeLength,
+                       int plateauWidth,
+                       int hillsideWidth,
+                       int hammDistOfNeedle ) {
     GENOME_LENGTH = genomeLength;
     PLATEAU_WIDTH = plateauWidth;
     HILLSIDE_WIDTH = hillsideWidth;
     HAMM_DIST_OF_NEEDLE = hammDistOfNeedle;
-
   }
 
   @Override
   public void adapt( double _bestFitness ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    // No adaptive parameters in this landscape.
   }
 
   public double fitness( Gene[] genome,
@@ -86,22 +85,36 @@ public class NeedleInHill
 
   @Override
   public double fitness( Individual _i ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    Gene[] genome = new Gene[ this.getGenomeLength() ];
+    for( int i = 0; i < genome.length; i++ ) {
+      genome[ i ] = _i.getGene( i );
+    }
+    StringBuilder extraString = new StringBuilder();
+    double ft = this.fitness( genome,
+                              extraString );
+    _i.setExtraString( extraString );
+    return ft;
   }
 
   @Override
   public double getGlobalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    // Binary loci: allow broad exploration in the worst ranks.
+    return 0.5;
   }
 
   @Override
   public double getLocalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    // Near-elites should mutate sparsely.
+    return 1.0 / this.getGenomeLength();
   }
 
   @Override
   public String getProblemName() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return "NeedleInHill_"
+           + this.GENOME_LENGTH + "_"
+           + this.PLATEAU_WIDTH + "_"
+           + this.HILLSIDE_WIDTH + "_"
+           + this.HAMM_DIST_OF_NEEDLE;
   }
 
   @Override
@@ -135,12 +148,14 @@ public class NeedleInHill
   @Override
   public Individual getNewIndividual( boolean _randomize,
                                       Random _r ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return new Individual( this,
+                           _randomize,
+                           _r );
   }
 
   @Override
   public Individual getNewIndividual( Individual _get ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return new Individual( _get );
   }
 
 }

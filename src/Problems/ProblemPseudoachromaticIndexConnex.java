@@ -36,7 +36,7 @@ public class ProblemPseudoachromaticIndexConnex
   public ProblemPseudoachromaticIndexConnex() {
     numVertices = 22;
     numEdges = numVertices * ( numVertices - 1 ) / 2;
-    numColors = 1;
+    numColors = 2;
     weightPairs = 0.01;
     weightColors = 1;
     weightStd = 0.000001;
@@ -176,7 +176,9 @@ public class ProblemPseudoachromaticIndexConnex
 
   @Override
   public double getGlobalSearchIntensity() {
-    return 1 / (double) numColors;
+    // For categorical genes, a mutation should be able to jump to any other
+    // color with equal probability once it happens.
+    return 1.0 - 1.0 / this.numColors;
   }
 
   @Override

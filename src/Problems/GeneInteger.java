@@ -14,8 +14,8 @@
  *     0 if equal, 1 if different.
  *
  * Notes:
- * - setDoubleValue(...) throws UnsupportedOperationException because this gene is strictly integer.
- * - setIntValue(...) ignores out-of-range inputs (>= NUM_VALUES) instead of throwing.
+ * - setDoubleValue(...) is projected to the nearest integer and then validated.
+ * - setIntValue(...) ignores out-of-range inputs (< 0 or >= NUM_VALUES) instead of throwing.
  * - The RNG is injected and shared by reference so reproducibility is controlled at a higher level.
  */
 package Problems;
@@ -36,7 +36,7 @@ public class GeneInteger
   implements Gene {
 
   /**
-   * Domain cardinality (number of admissible values). Must be >= 1.
+   * Domain cardinality (number of admissible values). Must be >= 2.
    */
   private int NUM_VALUES;
 
@@ -53,7 +53,7 @@ public class GeneInteger
   /**
    * Main constructor.
    *
-   * @param numValues domain cardinality (>= 1)
+   * @param numValues domain cardinality (>= 2)
    * @param randomize if true, initialize uniformly in [0, numValues-1]; if
    *                  false, initialize to 0
    * @param r         PRNG for reproducibility
@@ -61,6 +61,10 @@ public class GeneInteger
   public GeneInteger( int numValues,
                       boolean randomize,
                       Random r ) {
+    if( numValues < 2 ) {
+      throw new IllegalArgumentException(
+        "GeneInteger domain size must be at least 2" );
+    }
     this.NUM_VALUES = numValues;
     this.r = r;
     // Initialization: if randomize is true, sample uniformly; otherwise start at 0.
@@ -101,15 +105,14 @@ public class GeneInteger
   // Value and cardinality setters/getters
   // --------------------------------------------------------------------------------------------
   /**
-   * Setting a double value is not supported for a strictly integer gene.
+   * Project a floating-point value into the integer domain and reuse the
+   * integer setter for validation.
    *
    * @param _parseInt ignored
-   *
-   * @throws UnsupportedOperationException always
    */
   @Override
   public void setDoubleValue( double _parseInt ) {
-    throw new UnsupportedOperationException( "Not supported yet." );
+    this.setIntValue( (int) Math.round( _parseInt ) );
   }
 
   /**
@@ -119,7 +122,7 @@ public class GeneInteger
    */
   @Override
   public void setIntValue( int newValue ) {
-    if( newValue >= this.NUM_VALUES ) {
+    if( newValue < 0 || newValue >= this.NUM_VALUES ) {
       return; // out of range: ignore
     }
     this.value = newValue;
@@ -136,15 +139,21 @@ public class GeneInteger
   /**
    * Change the domain cardinality.
    * <p>
-   * WARNING: This method does not revalidate or adjust the current value. If
-   * you shrink the domain and the current value becomes out-of-range,
-   * consistency must be handled externally.
+   * If the domain shrinks and the current value becomes out-of-range, the value
+   * is clamped to the new maximum.
    *
    * @param _numValues new domain cardinality
    */
   @Override
   public void setNumValues( int _numValues ) {
+    if( _numValues < 2 ) {
+      throw new IllegalArgumentException(
+        "GeneInteger domain size must be at least 2" );
+    }
     this.NUM_VALUES = _numValues;
+    if( this.value >= this.NUM_VALUES ) {
+      this.value = this.NUM_VALUES - 1;
+    }
   }
 
   // --------------------------------------------------------------------------------------------

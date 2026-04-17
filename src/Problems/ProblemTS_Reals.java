@@ -192,8 +192,11 @@ public class ProblemTS_Reals
   @Override
   public Gene getNewGene( boolean _randomize_p,
                           Random r ) {
+    // Random-key encoding: randomize=false starts the locus deterministically at 0.0.
     return new GeneDoublePrecision( r,
-                                    1 );
+                                    _randomize_p
+                                    ? this.getGlobalSearchIntensity()
+                                    : 0.0 );
   }
 
   @Override

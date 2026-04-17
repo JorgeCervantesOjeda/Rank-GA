@@ -102,7 +102,8 @@ public class Population {
    * precomputes the mutation exponent β based on {@code G} and {@code L}
    * retrieved from the problem.
    *
-   * @param numIndividuals Number of individuals (N). Must be ≥ 2 to define
+   * @param numIndividuals Number of individuals (N). Must be ≥ 3 to keep the
+   *                       rank-based mutation schedule well-defined.
    *                       ln(N-1).
    * @param problem        Problem that supplies factories, intensities, and
    *                       fitness.
@@ -114,6 +115,11 @@ public class Population {
                      Problem problem,
                      boolean randomize,
                      Random randomizer ) {
+    if( numIndividuals < 3 ) {
+      throw new IllegalArgumentException(
+        "Population size must be at least 3" );
+    }
+
     this.problem = problem;
     this.randomizer = randomizer;
 

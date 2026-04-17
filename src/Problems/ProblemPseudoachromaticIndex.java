@@ -28,6 +28,10 @@ public class ProblemPseudoachromaticIndex
   public ProblemPseudoachromaticIndex( int _numVertices,
                                        int _numColors,
                                        float _weight ) {
+    if( _numColors < 2 ) {
+      throw new IllegalArgumentException(
+        "Pseudoachromatic index requires at least 2 colors" );
+    }
     numVertices = _numVertices;
     numEdges = numVertices * ( numVertices - 1 ) / 2;
     numColors = _numColors;
@@ -110,12 +114,14 @@ public class ProblemPseudoachromaticIndex
 
   @Override
   public double getGlobalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    // For categorical genes, a mutation should be able to jump to any other
+    // color with equal probability once it happens.
+    return 1.0 - 1.0 / this.numColors;
   }
 
   @Override
   public double getLocalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return 1.0 / this.getGenomeLength();
   }
 
   @Override

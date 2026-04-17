@@ -21,13 +21,13 @@ public class ProblemIC
         int vertex = row * gridSize + col;
         if( col < gridSize - 1 ) {
           // Add edge to the right neighbor
-          graph.addEdge( vertex,
-                         vertex + 1 );
+          theGraph.addEdge( vertex,
+                            vertex + 1 );
         }
         if( row < gridSize - 1 ) {
           // Add edge to the bottom neighbor
-          graph.addEdge( vertex,
-                         vertex + gridSize );
+          theGraph.addEdge( vertex,
+                            vertex + gridSize );
         }
       }
     }
@@ -37,7 +37,7 @@ public class ProblemIC
 
   @Override
   public void adapt( double bestFitness ) {
-    // Implement any problem-specific parameter adaptations here if needed
+    // Binary landscape with fixed constraints.
   }
 
   @Override
@@ -123,12 +123,12 @@ public class ProblemIC
 
   @Override
   public double getGlobalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return 0.5;
   }
 
   @Override
   public double getLocalSearchIntensity() {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+    return 1.0 / this.getGenomeLength();
   }
 
   @Override
