@@ -110,36 +110,52 @@ def perform_mutations(population, max_mut):
 
 
 # Selection Operator
-
+import math
+import random
 
 def select(population):
-    # Calculate the rank for each individual
-    ranks = [i / len(population) for i in range(len(population))]
+    """
+    Select clones from a population based on rank-based probabilities.
+    This function generates all clones after calculating the total number 
+    needed for each individual, avoiding loops where possible.
+    """
+    # Step 1: Define constants and population size
+    K = 3.0  # Cloning factor to control distribution
+    population_size = len(population)
 
-    # Calculate the number of clones for each individual
-    K = 3.0
-    num_clones = [(K * (1.0 - rank) ** (K - 1)) for rank in ranks]
+    # Step 2: Calculate ranks for each individual
+    # Ranks are based on normalized indices (0 to 1)
+    ranks = [i / population_size for i in range(population_size)]
 
-    # Produce clones based on ranks
-    clones = []
-    for i, num in enumerate(num_clones):
-        clones.extend(
-            [Individual(population[i].genotype[:])
-             for _ in range(math.floor(num))]
-        )
+    # Step 3: Calculate the number of clones (integer and fractional) for each individual
+    # Integer part: Whole clones; Fractional part: Remaining probabilities for additional clones
+    num_clones = [K * (1.0 - rank) ** (K - 1) for rank in ranks]
+    integer_clones = list(map(math.floor, num_clones))
+    fractional_clones = [num - int_clones for num, int_clones in zip(num_clones, integer_clones)]
 
-    # Calculate the fractional number of clones
-    fractional_clones = [num - math.floor(num) for num in num_clones]
+    # Step 4: Determine additional clones needed to match population size
+    additional_clones_needed = population_size - sum(integer_clones)
 
-    # Produce extra clones based on fractional clones
-    i = 0
-    while len(clones) < len(population):
-        if random.random() < fractional_clones[i]:
-            clones.append(Individual(population[i].genotype[:]))
-        # Increment i in a circular manner
-        i = (i + 1) % len(population)
+    # Step 5: Select indices for additional clones based on fractional probabilities
+    # `random.choices` selects indices proportionally to their fractional probabilities
+    additional_indices = random.choices(
+        range(population_size), weights=fractional_clones, k=additional_clones_needed
+    )
 
-    # Sort the clones by fitness
+    # Step 6: Compute total clones for each individual
+    # Sum integer clones and the count of additional clones for each index
+    total_clones = [
+        integer_clones[i] + additional_indices.count(i) for i in range(population_size)
+    ]
+
+    # Step 7: Generate all clones based on total_clones
+    # For each individual, create the specified number of clones
+    clones = [
+        Individual(population[i].genotype[:]) for i in range(population_size) for _ in range(total_clones[i])
+    ]
+
+    # Step 8: Sort the clones by fitness in descending order
+    # This ensures the fittest individuals appear first
     clones.sort(key=lambda ind: ind.fitness, reverse=True)
 
     return clones

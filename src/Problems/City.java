@@ -12,17 +12,12 @@ package Problems;
 class City {
 
   private int index;
-  private double x;
+  private GeneDoublePrecision g;
 
   City( int _i,
-        double _x ) {
+        GeneDoublePrecision _g ) {
     this.index = _i;
-    this.x = _x;
-  }
-
-  City() {
-    this.index = -1;
-    this.x = -1.0;
+    this.g = _g;
   }
 
   public int getIndex() {
@@ -33,12 +28,12 @@ class City {
     this.index = _i;
   }
 
-  public double getX() {
-    return x;
+  public GeneDoublePrecision getGene() {
+    return g;
   }
 
-  void setX( double _x ) {
-    this.x = _x;
+  public void setGeneValue( double x ) {
+    g.setDoubleValue( x );
   }
 
 }

@@ -12,30 +12,32 @@ import rankga.Gene;
  *
  * @author usuario
  */
-public class GeneDoublePrecision
+public final class GeneDoublePrecision
   implements Gene {
 
-  double value;
-  double std;
-  Random r;
+  private double value;
+  private final Random r;
 
-  public GeneDoublePrecision( double std,
-                              Random r ) {
+  public GeneDoublePrecision( Random r,
+                              double std ) {
     this.value = 0;
-    this.std = std;
     this.r = r;
-    mutate( std );
+    this.mutate( std );
   }
 
   public GeneDoublePrecision( GeneDoublePrecision other ) {
     this.value = other.value;
-    this.std = other.std;
     this.r = other.r;
   }
 
   @Override
   public double distanceTo( Gene other ) {
-    return this.getDoubleValue() - other.getDoubleValue();
+    return this.getValue() - other.getValue();
+  }
+
+  @Override
+  public int getNumValues() {
+    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
   }
 
   @Override
@@ -44,14 +46,9 @@ public class GeneDoublePrecision
   }
 
   @Override
-  public void mutate( double p ) {
+  public void mutate( double std ) {
     //value = r.nextDouble();
-    value = ( 1 - p ) * value + p * std * r.nextGaussian();
-  }
-
-  @Override
-  public int getIntValue() {
-    return (int) value;
+    value += std * r.nextGaussian();
   }
 
   @Override
@@ -60,7 +57,12 @@ public class GeneDoublePrecision
   }
 
   @Override
-  public double getDoubleValue() {
+  public void setDoubleValue( double newValue ) {
+    this.value = newValue;
+  }
+
+  @Override
+  public double getValue() {
     return value;
   }
 
@@ -68,11 +70,6 @@ public class GeneDoublePrecision
   public String toString() {
     return String.format( "%18.17f",
                           value );
-  }
-
-  @Override
-  public void multiplyDoubleValue( double _d ) {
-    this.value *= _d;
   }
 
 }

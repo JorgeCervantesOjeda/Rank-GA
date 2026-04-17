@@ -44,7 +44,11 @@ public class ProblemTS_Reals
 
   private int compareCities( City _a,
                              City _b ) {
-    return (int) Math.signum( _a.getX() - _b.getX() );
+    return (int) Math.signum(
+      Math.IEEEremainder( _a.getGene().getValue(),
+                          1.0 )
+      - Math.IEEEremainder( _b.getGene().getValue(),
+                            1.0 ) );
   }
 
   private void readDatos() {
@@ -76,16 +80,20 @@ public class ProblemTS_Reals
         Y[ i ] = y;
       }
       csvReader.close();
-    } catch( FileNotFoundException ex ) {
+    }
+    catch( FileNotFoundException ex ) {
       System.out.println( "------ No existe el archivo -------------" );
       System.out.println( ex );
-    } catch( IOException ex ) {
+    }
+    catch( IOException ex ) {
       System.out.println( "------ No se pudo leer del archivo -------------" );
       System.out.println( ex );
-    } finally {
+    }
+    finally {
       try {
         csvReader.close();
-      } catch( IOException ex ) {
+      }
+      catch( IOException ex ) {
         Logger.getLogger( ProblemDistricts.class.getName() ).log( Level.SEVERE,
                                                                   null,
                                                                   ex );
@@ -116,34 +124,27 @@ public class ProblemTS_Reals
       }
       System.out.println();
     }
-    for( int i = 0;
-         i < n;
-         i++ ) {
-      cities.add( new City() );
-    }
   }
 
   @Override
   public void adapt( double _bestFitness ) {
   }
 
-  public double fitness( Gene[] genome,
-                         StringBuilder extraString ) {
+  @Override
+  public double fitness( Individual _i ) {
     double sum = 0.0;
     double sumSqr = 0.0;
+    cities.clear();
     for( int i = 0;
          i < n;
          i++ ) {
-      cities.get( i ).setIndex( i );
-      cities.get( i ).setX( genome[ i ].getDoubleValue() );
-      sum += cities.get( i ).getX();
-      sumSqr += cities.get( i ).getX() * cities.get( i ).getX();
+      cities.add(
+        new City(
+          i,
+          (GeneDoublePrecision) _i.getGene( i )
+        )
+      );
     }
-    extraString.append( String.format( "%18.17f",
-                                       sum / n ) );
-    extraString.append( " " );
-    extraString.append( String.format( "%18.17f",
-                                       sumSqr / n ) );
     cities.sort( ( a, b )
       -> compareCities( a,
                         b ) );
@@ -162,19 +163,25 @@ public class ProblemTS_Reals
     for( int i = 0;
          i < n;
          i++ ) {
-      genome[ i ].multiplyDoubleValue( n / sumSqr );
+      cities.get( i ).setGeneValue( 1.0 / n * i );
     }
+
     return -cost;
   }
 
   @Override
-  public double fitness( Individual _i ) {
-    throw new UnsupportedOperationException( "Not supported yet." ); //To change body of generated methods, choose Tools | Templates.
+  public double getGlobalSearchIntensity() {
+    return 1;
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
+    return 1.0 / n * 0.01;
   }
 
   @Override
   public String getProblemName() {
-    return "TSP_Reals" + System.currentTimeMillis();
+    return "TSP_Reals";
   }
 
   @Override
@@ -185,8 +192,8 @@ public class ProblemTS_Reals
   @Override
   public Gene getNewGene( boolean _randomize_p,
                           Random r ) {
-    return new GeneDoublePrecision( 1.0,
-                                    r );
+    return new GeneDoublePrecision( r,
+                                    1 );
   }
 
   @Override
@@ -214,7 +221,7 @@ public class ProblemTS_Reals
 
   @Override
   public Individual getNewIndividual( Individual individual ) {
-    return new Individual( (Individual) individual );
+    return new Individual( individual );
   }
 
 }

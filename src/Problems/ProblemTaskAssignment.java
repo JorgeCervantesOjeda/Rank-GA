@@ -9,15 +9,12 @@ import java.util.Random;
 import rankga.*;
 
 /**
- * TaskAssignmentProblem - Implementation for the Task Assignment Problem with
- * Time and Cost constraints.
+ * TaskAssignmentProblem - Implementation for the Task Assignment Problem with Time and Cost constraints.
  *
- * This class provides methods to handle the specific requirements of the task
- * assignment optimization problem, such as calculating fitness, adapting
+ * This class provides methods to handle the specific requirements of the task assignment optimization problem, such as calculating fitness, adapting
  * parameters, and creating new individuals and genes.
  *
- * Author: Jorge Cervantes Affiliation: Universidad Autónoma Metropolitana,
- * Mexico City
+ * Author: Jorge Cervantes Affiliation: Universidad Autónoma Metropolitana, Mexico City
  */
 public class ProblemTaskAssignment
   implements Problem {
@@ -108,7 +105,7 @@ public class ProblemTaskAssignment
     for( int task = 0;
          task < this.numTasks;
          task++ ) {
-      int agent = individual.getGene( task ).getIntValue();
+      int agent = (int) individual.getGene( task ).getValue();
       if( agent > 0 ) {
         int agentIndex = agent - 1;
         totalBenefit += taskBenefits[ task ];
@@ -146,6 +143,16 @@ public class ProblemTaskAssignment
       sum += v;
     }
     return sum;
+  }
+
+  @Override
+  public double getGlobalSearchIntensity() {
+    return 0.5; //3 * this.getLocalSearchIntensity();
+  }
+
+  @Override
+  public double getLocalSearchIntensity() {
+    return 1.0 / this.getGenomeLength();
   }
 
   @Override
