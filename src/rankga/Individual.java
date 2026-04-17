@@ -3,34 +3,118 @@ package rankga;
 import java.util.Random;
 
 /**
- * Individual - Represents an individual in the population used for genetic
- * algorithms.
+ * Individual — Represents a solution candidate in the population for a Genetic
+ * Algorithm (GA).
  *
- * This class provides methods for creating individuals, manipulating genomes,
- * and evaluating fitness. Each individual is composed of an array of genes,
- * which can mutate and recombine.
+ * <h2>Design summary</h2>
+ * <ul>
+ * <li>An Individual holds a <b>genome</b> (array of {@link Gene}) that encodes
+ * a solution.</li>
+ * <li>Its quality is measured by a scalar <b>fitness</b> (higher is better, as
+ * used by RankGA).</li>
+ * <li>Operators:
+ * <ul>
+ * <li><b>Mutation</b>: driven by a per-individual <i>mutation intensity</i>
+ * (double). This is
+ * <b>not a Bernoulli probability per gene</b>. Each {@code Gene} interprets
+ * intensity to scale the magnitude of change (e.g., step size, noise stddev,
+ * flip strength).</li>
+ * <li><b>Recombination</b> (uniform crossover): swap each locus with
+ * probability 0.5 with a partner.</li>
+ * </ul>
+ * </li>
+ * <li>Rank-based GA specifics:
+ * <ul>
+ * <li>Rank is assigned externally by {@code Population} before
+ * recombination/mutation.</li>
+ * <li>The GA computes an intensity schedule {@code I_i = G * (rank_i)^β} and
+ * passes it to {@link #mutate(double)}.</li>
+ * </ul>
+ * </li>
+ * </ul>
  *
- * Author: Jorge Cervantes Affiliation: Universidad Autónoma Metropolitana,
- * Mexico City
+ * <h2>Important semantic conventions</h2>
+ * <ul>
+ * <li><b>Mutation intensity vs probability:</b> The parameter of
+ * {@link #mutate(double)} and {@link Gene#mutate(double)} is an
+ * <b>intensity</b>. Implementations should not treat it as a naive coin-flip
+ * probability per gene unless they explicitly map intensity → probability
+ * internally.</li>
+ * <li><b>Deep copy:</b> the copy constructor duplicates the genome gene-by-gene
+ * using {@code Problem.getNewGene(existingGene)}.</li>
+ * <li><b>Logging:</b> {@link #toString()} prints rank, last mutation intensity,
+ * fitness and any extra info accumulated.</li>
+ * </ul>
+ *
+ * Author: Jorge Cervantes — Universidad Autónoma Metropolitana, Mexico City
  */
 public class Individual {
 
-  protected Gene[] genome; // The genes that make up the genome of this individual.
-  protected Problem problem; // The problem associated with this individual.
-  private StringBuilder extraString; // Extra information string for this individual.
-  private double fitness; // The fitness value of this individual.
-  private int rank; // The rank of this individual in the population.
-  protected double mutationProbability; // Mutation probability for this individual.
-  private int mateRank; // Mate (partner) rank for recombination.
-  protected Random randomizer; // Random number generator for randomization.
+  /**
+   * The ordered list of genes that define this individual's genome (solution
+   * encoding).
+   */
+  protected Gene[] genome;
 
   /**
-   * Create a new individual with a random or specified genome.
+   * The problem to which this individual belongs; provides factories and
+   * fitness function.
+   */
+  protected Problem problem;
+
+  /**
+   * Additional info field (free-form) that operators or fitness can append to
+   * for logging/debug.
+   */
+  private StringBuilder extraString;
+
+  /**
+   * Cached fitness value. It is updated by {@link #updateFitness()} and read by
+   * the GA.
+   */
+  private double fitness;
+
+  /**
+   * Rank assigned by the GA (0 = best after sorting, N-1 = worst).
+   * <p>
+   * Used to produce rank-dependent operator behavior; set via package-private
+   * {@link #setRank(int)}.</p>
+   */
+  private int rank;
+
+  /**
+   * The last mutation intensity applied to this individual (for
+   * logging/inspection only).
+   * <p>
+   * <b>Not</b> a per-gene probability. This is the scalar the GA passes to
+   * {@link #mutate(double)}.</p>
+   */
+  protected double mutationIntensity;
+
+  /**
+   * Rank of the partner used in the last recombination (for
+   * logging/inspection).
+   */
+  private int mateRank;
+
+  /**
+   * RNG shared with the population/problem to ensure reproducibility and seed
+   * control.
+   */
+  protected Random randomizer;
+
+  // --------------------------------------------------------------------------------------------
+  // Constructors
+  // --------------------------------------------------------------------------------------------
+  /**
+   * Constructs a new individual, optionally randomizing its genome.
    *
-   * @param problem   The problem associated with this individual.
-   * @param randomize If true, create a random genome. Otherwise, use the
-   *                  default values.
-   * @param random    The random number generator.
+   * @param problem   the owning problem instance; provides factories and
+   *                  fitness
+   * @param randomize if true, initialize each gene randomly; else use problem
+   *                  defaults
+   * @param random    the PRNG to use for genome initialization and later
+   *                  operators
    */
   public Individual( Problem problem,
                      boolean randomize,
@@ -43,83 +127,58 @@ public class Individual {
   }
 
   /**
-   * Create a copy of another individual.
+   * Deep-copy constructor.
+   * <p>
+   * Copies the problem reference, PRNG, cached fitness, and <b>deep-copies</b>
+   * each gene by calling {@code problem.getNewGene(other.getGene(i))}. Rank and
+   * mateRank are reset.</p>
    *
-   * @param other The individual to copy.
+   * @param other source individual
    */
   public Individual( Individual other ) {
     this.problem = other.problem;
     this.genome = new Gene[ problem.getGenomeLength() ];
     this.randomizer = other.randomizer;
     this.extraString = new StringBuilder();
-    this.fitness = other.fitness;
-    this.rank = -1;
-    this.mutationProbability = 0.0;
+    this.fitness = other.fitness;      // copy cached fitness for convenience; can be recomputed later
+    this.rank = -1;                    // rank will be set by Population
+    this.mutationIntensity = 0.0;
     this.mateRank = -1;
     copyGenome( other );
   }
 
   /**
-   * Initialize the genome with either random values or default values.
-   *
-   * @param randomize Whether to randomize the genome.
+   * Initializes each locus with a fresh Gene from the problem; random or
+   * default per flag.
    */
   private void initializeGenome( boolean randomize ) {
-    for( int i = 0;
-         i < genome.length;
-         i++ ) {
+    for( int i = 0; i < genome.length; i++ ) {
       genome[ i ] = problem.getNewGene( randomize,
                                         randomizer );
     }
   }
 
   /**
-   * Copy the genome from another individual.
-   *
-   * @param other The individual to copy the genome from.
+   * Deep-copies the genome by asking the problem to create a new Gene from an
+   * existing one.
    */
   private void copyGenome( Individual other ) {
-    for( int i = 0;
-         i < genome.length;
-         i++ ) {
+    for( int i = 0; i < genome.length; i++ ) {
       genome[ i ] = problem.getNewGene( other.getGene( i ) );
     }
   }
 
+  // --------------------------------------------------------------------------------------------
+  // Fitness
+  // --------------------------------------------------------------------------------------------
   /**
-   * Append extra information to the extra string.
+   * Recomputes and caches the fitness using
+   * {@link Problem#fitness(Individual)}.
+   * <p>
+   * Also clears the {@link #extraString} so fresh operator/fitness notes can be
+   * appended.</p>
    *
-   * @param s The string to append.
-   */
-  public void appendExtraString( String s ) {
-    this.extraString.append( s );
-  }
-
-  /**
-   * Set the extra string for this individual.
-   *
-   * @param s The extra information string.
-   */
-  public void setExtraString( StringBuilder s ) {
-    this.extraString = s;
-  }
-
-  /**
-   * Set a gene at a specific index in the genome.
-   *
-   * @param index The index.
-   * @param gene  The gene to set.
-   */
-  public void setGene( int index,
-                       Gene gene ) {
-    this.genome[ index ] = gene;
-  }
-
-  /**
-   * Update the fitness of this individual by evaluating the problem's fitness
-   * function.
-   *
-   * @return The updated fitness value.
+   * @return the updated fitness value
    */
   public double updateFitness() {
     this.setExtraString( new StringBuilder( "" ) );
@@ -128,40 +187,54 @@ public class Individual {
   }
 
   /**
-   * Get the fitness value of this individual.
-   *
-   * @return The fitness value.
+   * @return the last computed fitness value (call {@link #updateFitness()} to
+   *         refresh)
    */
   public double getFitness() {
     return fitness;
   }
 
+  // --------------------------------------------------------------------------------------------
+  // Mutation & Recombination
+  // --------------------------------------------------------------------------------------------
   /**
-   * Mutate the genes of this individual with a given mutation probability.
+   * Mutates this individual by passing a scalar <b>intensity</b> to each gene's
+   * {@link Gene#mutate(double)}.
+   * <p>
+   * <b>Contract:</b> intensity is a unitless scalar whose meaning is defined
+   * consistently across gene implementations (e.g., as a step-size, noise
+   * variance, or categorical flip strength).</p>
    *
-   * @param probability The mutation probability.
+   * <p>
+   * <b>Important:</b> This is not a per-gene probability. If a gene
+   * implementation wishes to use probabilistic flips, it should map intensity
+   * to a probability internally (e.g., via a monotone function) and document
+   * the mapping.</p>
+   *
+   * @param intensity mutation intensity computed by the GA (e.g., rank-based
+   *                  schedule)
    */
-  public void mutate( double probability ) {
-    this.mutationProbability = probability;
-    for( Gene gene
-         : genome ) {
-      gene.mutate( probability );
+  public void mutate( double intensity ) {
+    this.mutationIntensity = intensity;  // recorded for logging/inspection
+    for( Gene gene : genome ) {
+      gene.mutate( intensity );
     }
   }
 
   /**
-   * Recombine genes with another individual. Genes are swapped randomly based
-   * on a 50% chance.
+   * Uniform crossover with another individual.
+   * <p>
+   * For each locus {@code i}, swap genes with probability 0.5. This preserves
+   * marginal distributions, mixes building blocks, and is symmetric w.r.t.
+   * parents. The ranks of partners are stored for logging.</p>
    *
-   * @param partner The other individual to recombine with.
+   * @param partner the mate with whom to exchange genetic material
    */
   public void recombinate( Individual partner ) {
     this.mateRank = partner.rank;
     partner.mateRank = this.rank;
 
-    for( int i = 0;
-         i < genome.length;
-         i++ ) {
+    for( int i = 0; i < genome.length; i++ ) {
       if( randomizer.nextDouble() < 0.5 ) {
         Gene tempGene = this.getGene( i );
         this.setGene( i,
@@ -172,107 +245,130 @@ public class Individual {
     }
   }
 
+  // --------------------------------------------------------------------------------------------
+  // Genome utilities & diagnostics
+  // --------------------------------------------------------------------------------------------
   /**
-   * Get a string representation of the genome.
-   *
-   * @return The genome as a formatted string.
+   * @return a compact human-readable representation of the genome
+   * <p>
+   * Integers are printed as decimal; non-integers in scientific notation.
+   * Groups of genes are separated using the problem-provided display
+   * modulus.</p>
    */
   public String genomeStr() {
     StringBuilder genomeString = new StringBuilder();
-    for( int i = 0;
-         i < genome.length;
-         i++ ) {
-      String geneStr = String.format( "%01d",
-                                      genome[ i ].getIntValue() );
-      genomeString.append( ( i % problem.getDisplayModulus() == 0
-                             ? " "
-                             : "" ) + geneStr );
+    int displayModulus = problem.getDisplayModulus();
+
+    for( int i = 0; i < genome.length; i++ ) {
+      if( i % displayModulus == 0 && i != 0 ) {
+        genomeString.append( " " );
+      }
+      double value = genome[ i ].getValue();
+      String geneStr = ( value == Math.floor( value ) )
+                       ? String.format( "%d",
+                                        (int) value )     // integer-like
+                       : String.format( "%.2e",
+                                        value );        // floating-point
+      genomeString.append( geneStr );
     }
     return genomeString.toString();
   }
 
   /**
-   * Get a string representation of this individual, including rank, mutation
-   * probability, fitness, and extra information.
-   *
-   * @return The individual as a formatted string.
+   * Squared Euclidean distance between this genome and another.
+   * <p>
+   * Useful to detect actual improvements (non-zero distance) and for
+   * diagnostics/diversity metrics.</p>
    */
-  @Override
-  public String toString() {
-    return String.format( "%d\t%18.17f %18.17e %s",
-                          rank,
-                          mutationProbability,
-                          fitness,
-                          extraString );
+  public double distanceSqTo( Individual other ) {
+    double sumSq = 0;
+    for( int i = 0; i < genome.length; i++ ) {
+      double d = genome[ i ].distanceTo( other.genome[ i ] );
+      sumSq += d * d;
+    }
+    return sumSq;
+  }
+
+  // --------------------------------------------------------------------------------------------
+  // Misc accessors
+  // --------------------------------------------------------------------------------------------
+  /**
+   * Append arbitrary text to the extra info buffer (operators/fitness may log
+   * here).
+   */
+  public void appendExtraString( String s ) {
+    this.extraString.append( s );
   }
 
   /**
-   * Get a gene at a specific index in the genome.
-   *
-   * @param index The index of the gene to retrieve.
-   *
-   * @return The gene at the specified index.
+   * Replace the extra info buffer.
+   */
+  public void setExtraString( StringBuilder s ) {
+    this.extraString = s;
+  }
+
+  /**
+   * Random-access getter for a specific gene.
    */
   public Gene getGene( int index ) {
     return this.genome[ index ];
   }
 
   /**
-   * Calculate the squared Euclidean distance between this individual and
-   * another individual.
-   *
-   * @param other The other individual to compare.
-   *
-   * @return The squared Euclidean distance.
+   * Random-access setter for a specific gene (used primarily by crossover).
    */
-  public double distanceSqTo( Individual other ) {
-    double sumSq = 0;
-    for( int i = 0;
-         i < genome.length;
-         i++ ) {
-      double distance = genome[ i ].distanceTo( other.genome[ i ] );
-      sumSq += distance * distance;
-    }
-    return sumSq;
+  public void setGene( int index,
+                       Gene gene ) {
+    this.genome[ index ] = gene;
   }
 
   /**
-   * Set the rank of this individual.
-   *
-   * @param rank The rank to set.
+   * Package-level: Population assigns ranks before operators.
    */
   protected void setRank( int rank ) {
     this.rank = rank;
   }
 
   /**
-   * Calculate the average value of the genes in this individual's genome.
-   *
-   * @return The average value of the genes.
+   * @return arithmetic mean of gene values (quick scalar descriptor for
+   *         logs/monitoring)
    */
   public double avg() {
     double sum = 0.0;
-    for( Gene gene
-         : genome ) {
-      sum += gene.getDoubleValue();
+    for( Gene gene : genome ) {
+      sum += gene.getValue();
     }
     return sum / genome.length;
   }
 
   /**
-   * Calculate the standard deviation of gene values for this individual.
-   *
-   * @return The standard deviation of gene values.
+   * @return population (biased) std. dev. of gene values (quick dispersion
+   *         descriptor)
    */
   public double std() {
-    double avg = avg();
+    double mean = avg();
     double sumDiffSqr = 0;
-    for( Gene gene
-         : genome ) {
-      double diff = gene.getDoubleValue() - avg;
+    for( Gene gene : genome ) {
+      double diff = gene.getValue() - mean;
       sumDiffSqr += diff * diff;
     }
     return Math.sqrt( sumDiffSqr / genome.length );
+  }
+
+  /**
+   * String summary for logs:
+   * <pre>
+   * rank \t mutationIntensity \t fitness \t extra
+   * </pre> Example:
+   * <code>0\t0.12345678901234567  1.23456789012345678e+02  (notes)</code>
+   */
+  @Override
+  public String toString() {
+    return String.format( "%d\t%18.17f %18.17e %s",
+                          rank,
+                          mutationIntensity,
+                          fitness,
+                          extraString );
   }
 
 }

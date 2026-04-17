@@ -10,206 +10,337 @@ import java.util.Random;
 import static rankga.ConvertTime.convertMillisToTimeFormat;
 
 /**
- * RankGA - Genetic Algorithm for Optimization
+ * RankGA — Genetic Algorithm (GA) driver using rank-based selection, pairwise
+ * recombination, and rank-based mutation intensity.
  *
- * This Java program implements a Genetic Algorithm (GA) framework for solving
- * optimization problems. Genetic Algorithms are a class of search heuristics
- * inspired by the process of natural selection. They evolve a population of
- * individuals over generations to find solutions that optimize a given fitness
- * function.
+ * <h2>Overview</h2>
+ * This class coordinates the full evolutionary loop:
+ * <ol>
+ * <li><b>Initialization</b>: create a population for a specific
+ * {@link Problem}.</li>
+ * <li><b>Evaluation</b>: compute fitness and keep population sorted
+ * (descending).</li>
+ * <li><b>Selection</b>: rank-based cloning with stochastic rounding to keep
+ * size exactly N.</li>
+ * <li><b>Recombination</b>: pair sorted individuals (0,1), (2,3), … with
+ * uniform crossover.</li>
+ * <li><b>Mutation</b>: per-individual <em>intensity</em> I<sub>i</sub> = G ·
+ * (rank)<sup>β</sup>, β = ln(G/L)/ln(N−1).</li>
+ * <li><b>Adaptation</b>: allow the problem to adjust its internal parameters
+ * based on the current best fitness.</li>
+ * <li><b>Termination</b>: stop when (a) no improvement has occurred for a given
+ * patience window, or (b) the problem’s goal fitness is reached.</li>
+ * </ol>
  *
- * Key Features: - Patience for terminating the algorithm after a specified
- * time. - Logging and reporting of progress, fitness values, and solution data.
+ * <h2>Logging</h2>
+ * The driver prints compact progress lines to stdout and appends two files per
+ * run:
+ * <ul>
+ * <li><code>&lt;problemRunName&gt;.txt</code>: chronological log of best-so-far
+ * snapshots.</li>
+ * <li><code>&lt;problemRunName&gt;_&lt;rep&gt;.txt</code>: last full population
+ * dump for the repetition.</li>
+ * </ul>
  *
- * Usage: To use this program, you need to define a specific problem by creating
- * an instance of a class that implements the Problem interface. Then, customize
- * the parameters and run the algorithm.
+ * <h2>Caveats / Assumptions</h2>
+ * <ul>
+ * <li>Fitness is maximized (higher is better).</li>
+ * <li>{@link Population#evaluate()} must be called after operators to maintain
+ * sorting.</li>
+ * <li>Patience counts wall-clock time without improvement of the <em>best</em>
+ * individual (and with a non-zero genotype distance).</li>
+ * <li>The example uses {@code ProblemTS_Reals}; plug in your own
+ * {@link Problem} as needed.</li>
+ * </ul>
  *
- * Author: Jorge Cervantes Affiliation: Universidad Autónoma Metropolitana,
- * Mexico City
- *
- * @see Problem
- * @see Population
+ * Author: Jorge Cervantes — Universidad Autónoma Metropolitana, Mexico City
  */
 public class RankGA {
 
-  // Maximum time without improvement before the algorithm stops (in milliseconds).
-  private static final long PATIENCE = 60L * 1000L;
+  /**
+   * Max wall-clock time without improvement before stopping (milliseconds).
+   */
+  private static final long PATIENCE = 1 * 60L * 1000L;
 
+  // --- GA state (static for a simple single-run driver) ---------------------------------------
+  /**
+   * Current population instance for the active repetition.
+   */
   static protected Population population;
+
+  /**
+   * Timestamps for run start and periodic progress.
+   */
   static protected Date startTime;
-  static protected final Date runTime = new Date();
-  static protected final Date tryTime = new Date();
-  static protected Date notImproved = new Date();
-  static protected Date lastDisplay = new Date();
-  static protected Date now;
+  static protected final Date runTime = new Date();  // elapsed since start
+  static protected final Date tryTime = new Date();  // elapsed since last improvement
+  static protected Date notImproved = new Date();    // last time an improvement was recorded
+  static protected Date lastDisplay = new Date();    // last time we printed a progress line
+  static protected Date now;                         // current timestamp snapshot
+
+  /**
+   * Best-so-far individual (deep copy) used to detect genuine improvements and
+   * log snapshots.
+   */
   static protected Individual lastBest;
+
+  /**
+   * Repetition counter (outer loop to assess robustness).
+   */
   static protected int repetition;
+
+  /**
+   * Generation counter (increments after each operator phase).
+   */
   static protected long generation;
 
+  // --------------------------------------------------------------------------------------------
+  // Entry point
+  // --------------------------------------------------------------------------------------------
   public static void main( String[] args ) {
-    // Define the problem to be optimized
-    Problem problem = new ProblemNK();
-    String problemRunName = problem.getProblemName() + "_" + System.currentTimeMillis();
+    // 1) Select the problem to optimize (plug your own implementation here).
+    Problem problem = new ProblemTS_Reals();
+
+    // Unique name for logs (problem name + timestamp).
+    String problemRunName = problem.getProblemName() + "_" + System
+           .currentTimeMillis();
 
     System.out.println( "Patience: " + convertMillisToTimeFormat( PATIENCE ) );
     System.out.println( "Problem: " + problemRunName );
 
-    // Loop for multiple repetitions to validate robustness
-    for( repetition = 0;
-         repetition < 10;
-         repetition++ ) {
+    // 2) Outer loop: repeat full runs to assess robustness / variance.
+    for( repetition = 0; repetition < 10; repetition++ ) {
+
+      // --- Reset run-level clocks/state -------------------------------------------------------
       startTime = new Date();
       initializePopulation( problem );
-      lastBest = problem.getNewIndividual( population.getFittest() );
-
+      lastBest = problem.getNewIndividual( population.getFittest() ); // deep copy of current best
       generation = 1;
       notImproved = new Date();
       lastDisplay = new Date();
       now = new Date();
 
-      // Log headers
+      // --- Header for console logging ---------------------------------------------------------
       System.out.println(
         "t\tni\trep\tg\ts\tph\td\trank\tp\tfitness\textra\tgenes\tDateTime\tmil" );
 
+      // Initial snapshot “S” (Start).
       report( "S",
               problemRunName );
 
-      // Main genetic algorithm loop
+      // 3) Evolutionary loop: selection → recombination → mutation (with evaluations in between).
       do {
         evolvePopulation( problemRunName,
                           problem );
         now = new Date();
 
-        // Display periodic progress
+        // Emit periodic lightweight progress lines (not full snapshots).
         displayProgress();
 
-        // Adapt problem parameters based on the best solution
+        // Allow the problem to adapt (e.g., schedules, penalties) based on current best fitness.
         problem.adapt( lastBest.getFitness() );
 
-      }
-      while( ( now.getTime() - notImproved.getTime() ) < PATIENCE
-             && population.getFittest().getFitness() < problem.getGoalFt() );
+        // Loop until: (a) no improvement for PATIENCE window, or (b) goal fitness reached.
+      } while( ( now.getTime() - notImproved.getTime() ) < PATIENCE
+               && population.getFittest().getFitness() < problem.getGoalFt() );
 
-      // Final reporting after completion of evolution
+      // Final snapshot “L” (Last) after termination.
       report( "L",
               problemRunName );
     }
   }
 
-  // Initializes the population for the problem
+  // --------------------------------------------------------------------------------------------
+  // Initialization
+  // --------------------------------------------------------------------------------------------
+  /**
+   * Creates a fresh population and evaluates it (so it starts sorted).
+   * <p>
+   * Population size is currently fixed to 20 for the example; adjust as
+   * needed.</p>
+   */
   private static void initializePopulation( Problem problem ) {
-    population = new Population( 20,
-                                 problem,
-                                 true,
-                                 new Random() );
-    population.evaluate();
+    population = new Population(
+    20,          // N (population size)
+    problem,
+    true,        // randomize initial genomes
+    new Random() // PRNG
+  );
+    population.evaluate(); // compute fitness and sort descending
   }
 
-  // Handles the process of evolving the population through selection, recombination, and mutation
+  // --------------------------------------------------------------------------------------------
+  // Single evolutionary “epoch”: selection → recombination → mutation (+ evaluations)
+  // --------------------------------------------------------------------------------------------
+  /**
+   * Performs one full evolutionary epoch:
+   * <ol>
+   * <li><b>Selection</b>: clone according to rank-based expected counts.</li>
+   * <li><b>Recombination</b>: pair (0,1), (2,3), …, then evaluate and snapshot
+   * if improved (“R”).</li>
+   * <li><b>Mutation</b>: apply rank-based intensity schedule, then evaluate and
+   * snapshot if improved (“M”).</li>
+   * </ol>
+   *
+   * @param problemRunName log file prefix
+   * @param problem        owning problem for deep-copy factories
+   */
   private static void evolvePopulation( String problemRunName,
                                         Problem problem ) {
-    // Selection phase
+    // --- Selection (rank-based cloning) -------------------------------------------------------
     population.select();
 
-    // Recombination phase
-    population.recombinate();
+    // --- Recombination in adjacent pairs, then evaluate and check improvement ----------------
+    population.recombine();
     population.evaluate();
     checkImprovement( "R",
                       problemRunName,
-                      problem );
+                      problem ); // “R” = post-Recombination snapshot if better
 
-    // Mutation phase
+    // --- Mutation with rank-based intensity, then evaluate and check improvement --------------
     population.mutate();
     population.evaluate();
     checkImprovement( "M",
                       problemRunName,
-                      problem );
+                      problem ); // “M” = post-Mutation snapshot if better
   }
 
-  // Checks if there has been an improvement in the population
+  // --------------------------------------------------------------------------------------------
+  // Improvement detection & snapshot logging
+  // --------------------------------------------------------------------------------------------
+  /**
+   * If the current best strictly improves the last-best fitness and is not a
+   * duplicate genome (distance > 0), emit a snapshot log and refresh the “last
+   * best” copy and timers.
+   *
+   * @param phase          phase tag (“R” after recombination, “M” after
+   *                       mutation, etc.)
+   * @param problemRunName log file prefix
+   * @param problem        owning problem for deep-copy factory
+   */
   private static void checkImprovement( String phase,
                                         String problemRunName,
                                         Problem problem ) {
-    if( lastBest.getFitness() <= population.getFittest().getFitness()
+    if( lastBest.getFitness() < population.getFittest().getFitness()
         && lastBest.distanceSqTo( population.getFittest() ) > 0.0 ) {
+
       report( phase,
-              problemRunName );
-      lastBest = problem.getNewIndividual( population.getFittest() );
-      notImproved = new Date();
-      lastDisplay = new Date();
+              problemRunName );                            // print and persist a snapshot
+      lastBest = problem.getNewIndividual( population.getFittest() ); // deep copy new best
+      notImproved = new Date();                                   // reset patience timer
+      lastDisplay = new Date();                                   // reset progress display timer
     }
-    generation++;
+    generation++; // increment generation counter after each operator phase
   }
 
-  // Displays progress periodically to the console
+  // --------------------------------------------------------------------------------------------
+  // Lightweight progress reporting
+  // --------------------------------------------------------------------------------------------
+  /**
+   * Periodically prints a terse progress line to stdout (no file I/O).
+   * <ul>
+   * <li>Every PATIENCE/10 milliseconds, shows elapsed, generations, and speed
+   * (gen/ms).</li>
+   * <li>Useful for monitoring without overwhelming the console.</li>
+   * </ul>
+   */
   private static void displayProgress() {
     if( ( now.getTime() - lastDisplay.getTime() ) > PATIENCE / 10 ) {
       lastDisplay = new Date();
-      runTime.setTime( now.getTime() - startTime.getTime() );
-      tryTime.setTime( now.getTime() - notImproved.getTime() );
-      System.out.println( "\r" + convertMillisToTimeFormat( runTime.getTime() )
-                          + " g:" + generation + " s:" + ( (float) generation / runTime.getTime() )
-                          + " ni:" + convertMillisToTimeFormat(
-          tryTime.getTime() ) + " --" );
+      runTime.setTime( now.getTime() - startTime.getTime() );     // total elapsed
+      tryTime.setTime( now.getTime() - notImproved.getTime() );   // time since last improvement
+
+      System.out.println(
+        "\r" + convertMillisToTimeFormat( runTime.getTime() )
+        + " g:" + generation
+        + " s:" + ( (float) generation / runTime.getTime() )
+        + " ni:" + convertMillisToTimeFormat( tryTime.getTime() ) + " --"
+      );
       System.out.flush();
     }
   }
 
-  // Logs the current state of the genetic algorithm
+  // --------------------------------------------------------------------------------------------
+  // Snapshot (best-so-far) reporting & file I/O
+  // --------------------------------------------------------------------------------------------
+  /**
+   * Emits a best-so-far snapshot:
+   * <ul>
+   * <li>Console: a single-line summary with elapsed times, phase tag, diversity
+   * (distance), best individual summary, genome string, wall-clock timestamp,
+   * and milliseconds since start.</li>
+   * <li>File: appends the same line to
+   * <code>&lt;problemRunName&gt;.txt</code>.</li>
+   * <li>Population dump: writes the full current population to
+   * <code>&lt;problemRunName&gt;_&lt;rep&gt;.txt</code> (overwriting the
+   * previous dump for this repetition).</li>
+   * </ul>
+   *
+   * @param phase       phase tag: "S" (Start), "R" (after recombination), "M"
+   *                    (after mutation), "L" (Last)
+   * @param problemName file prefix (problem name + timestamp)
+   */
   static protected void report( String phase,
                                 String problemName ) {
     Individual best = population.getFittest();
-    double distance = best.distanceSqTo( lastBest );
+    double distance = best.distanceSqTo( lastBest );       // diversity relative to previous best copy
     Date now = new Date();
+
+    // Columns (tab-separated) — matches the header printed in main():
+    // t  ni  rep  g  s  ph  d  rank  p  fitness  extra  genes  DateTime  mil
     String reportString = String.format(
-           "%s %s %d %d %9.7f %s %f\t%s\t%s\t%s %d\n",
-           convertMillisToTimeFormat( now.getTime() - startTime.getTime() ),
-           convertMillisToTimeFormat( now.getTime() - notImproved.getTime() ),
-           repetition,
-           generation,
-           (float) generation / ( now.getTime() - startTime.getTime() ),
-           phase,
-           distance,
-           best,
-           best.genomeStr(),
-           now,
-           ( now.getTime() - startTime.getTime() ) );
+           "%s %s %d %d %9.7f %s %.2e\t%s\t%s\t%s %d\n",
+           convertMillisToTimeFormat( now.getTime() - startTime.getTime() ), // t  (elapsed since start)
+           convertMillisToTimeFormat( now.getTime() - notImproved.getTime() ), // ni (since last improvement)
+           repetition,                                                       // rep
+           generation,                                                       // g
+           (float) generation / ( now.getTime() - startTime.getTime() ),     // s = gen / ms
+           phase,                                                            // ph
+           distance,                                                         // d = squared distance
+           best,                                                             // rank, last mut intensity, best fitness, extra
+           best.genomeStr(),                                                 // genes (compact)
+           now,                                                              // DateTime
+           ( now.getTime() - startTime.getTime() ) // mil (elapsed ms)
+         );
 
     System.out.print( "\r" + reportString );
     System.out.flush();
 
+    // Persist snapshot and current population state.
     logToFile( problemName,
                reportString );
     logPopulation( problemName );
   }
 
-  // Logs general report details to a file
+  /**
+   * Append a line to the run-level log file (<problemRunName>.txt).
+   */
   private static void logToFile( String problemName,
                                  String content ) {
-    try( PrintWriter out = new PrintWriter( new BufferedWriter( new FileWriter(
-                     problemName + ".txt",
-                     true ) ) ) ) {
+    try( PrintWriter out = new PrintWriter(
+                     new BufferedWriter( new FileWriter( problemName + ".txt",
+                                                         true ) ) ) ) {
       out.print( content );
-    }
-    catch( IOException e ) {
+    } catch( IOException e ) {
       System.out.println( e );
     }
   }
 
-  // Logs the population details to a file
+  /**
+   * Write the full current population to a repetition-scoped file
+   * (<problemRunName>_<rep>.txt). The file is overwritten on each snapshot so
+   * it always contains the latest state.
+   */
   private static void logPopulation( String problemName ) {
-    try( PrintWriter out = new PrintWriter( new BufferedWriter( new FileWriter(
-                     problemName + "_" + repetition + ".txt",
-                     false ) ) ) ) {
-      for( int i = 0;
-           i < population.getSize();
-           i++ ) {
-        out.println(
-          population.getIndividual( i ) + "\t" + population.getIndividual( i ).genomeStr() );
+    try( PrintWriter out = new PrintWriter(
+                     new BufferedWriter( new FileWriter(
+                       problemName + "_" + repetition + ".txt",
+                       false ) ) ) ) {
+      for( int i = 0; i < population.getSize(); i++ ) {
+        out.println( population.getIndividual( i ) + "\t" + population
+          .getIndividual( i ).genomeStr() );
       }
-    }
-    catch( IOException e ) {
+    } catch( IOException e ) {
       System.out.println( e );
     }
   }

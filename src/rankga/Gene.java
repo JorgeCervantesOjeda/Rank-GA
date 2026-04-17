@@ -1,60 +1,112 @@
 package rankga;
 
 /**
- * An interface representing a gene, the basic unit of an individual's genome.
+ * Gene — Atomic unit of an individual's genome.
+ *
+ * <h2>Purpose</h2>
+ * A {@code Gene} encapsulates the representation and local operators at a
+ * single locus:
+ * <ul>
+ * <li><b>Value</b>: read/write accessors for numeric state (int/double);
+ * categorical genes may encode categories as integers.</li>
+ * <li><b>Mutation</b>: applies a change according to a given <b>intensity</b>
+ * (not probability).</li>
+ * <li><b>Distance</b>: returns a scalar distance to another gene at the same
+ * locus (used for diagnostics/diversity/termination checks).</li>
+ * </ul>
+ *
+ * <h2>Mutation intensity contract</h2>
+ * The {@link #mutate(double)} parameter is a unitless scalar whose meaning
+ * should be
+ * <b>consistent across a problem's gene types</b>. Common interpretations
+ * include:
+ * <ul>
+ * <li><i>Reals</i>: step size or noise standard deviation (e.g., Gaussian with
+ * σ = intensity).</li>
+ * <li><i>Integers/categorical</i>: neighborhood radius, number of perturbation
+ * attempts, or a monotone mapping to a flip probability (document the mapping
+ * if used).</li>
+ * </ul>
+ * Implementations should be deterministic given the PRNG used at construction
+ * time by the owning {@code Problem}.
  */
 public interface Gene {
 
+  // --------------------------------------------------------------------------------------------
+  // Value API
+  // --------------------------------------------------------------------------------------------
   /**
-   * Set the integer value of this gene.
+   * Sets the integer value for this gene.
+   * <p>
+   * Typical for categorical/ordinal encodings. Implementations should validate
+   * bounds if applicable.</p>
    *
-   * @param _parseInt The integer value to set.
+   * @param value integer value to set
    */
-  public void setIntValue( int _parseInt );
+  void setIntValue( int value );
 
   /**
-   * Mutate this gene with a given mutation probability.
+   * Sets the double value for this gene.
+   * <p>
+   * Typical for real-parameter optimization. Implementations may clamp to valid
+   * ranges.</p>
    *
-   * @param p The mutation probability.
+   * @param value double value to set
    */
-  public void mutate( double p );
+  void setDoubleValue( double value );
 
   /**
-   * Get the integer value of this gene.
-   *
-   * @return The integer value of the gene.
+   * @return the current (double) value of this gene
+   * <p>
+   * Categorical/integer genes may expose their internal integer as a double for
+   * uniform logging/metrics.</p>
    */
-  public int getIntValue();
+  double getValue();
+
+  // --------------------------------------------------------------------------------------------
+  // Operators
+  // --------------------------------------------------------------------------------------------
+  /**
+   * Applies mutation to this gene using the provided <b>intensity</b>.
+   * <p>
+   * <b>Not</b> a per-gene Bernoulli probability. If an implementation requires
+   * probabilistic flips, it should internally map intensity → probability via a
+   * documented monotone function.</p>
+   *
+   * @param intensity mutation intensity (unitless scalar)
+   */
+  void mutate( double intensity );
 
   /**
-   * Get the double value of this gene.
+   * Distance to another gene located at the <b>same locus</b>.
+   * <p>
+   * Used for diversity diagnostics and to verify non-trivial improvements:
+   * RankGA checks that the best individual is not identical using distance &gt;
+   * 0.</p>
    *
-   * @return The double value of the gene.
+   * @param other another gene instance to compare (must be comparable at this
+   *              locus)
+   *
+   * @return non-negative distance (0 if identical)
    */
-  public double getDoubleValue();
+  double distanceTo( Gene other );
+
+  // --------------------------------------------------------------------------------------------
+  // Metadata (optional, implementation-defined)
+  // --------------------------------------------------------------------------------------------
+  /**
+   * @return number of admissible values (for categorical/discrete genes); for
+   *         continuous genes, may return 0 or -1
+   */
+  int getNumValues();
 
   /**
-   * Multiply the double value of this gene by a given factor.
+   * Sets the number of admissible values (categorical/discrete encodings).
+   * <p>
+   * Implementations may ignore this for continuous genes.</p>
    *
-   * @param _d The factor to multiply by.
+   * @param numValues number of possible values
    */
-  public void multiplyDoubleValue( double _d );
-
-  /**
-   * Calculate the distance between this gene and another gene.
-   *
-   * @param other The other gene to calculate distance to.
-   *
-   * @return The distance between this gene and the other gene.
-   */
-  public double distanceTo( Gene other );
-
-  /**
-   * Set the number of possible values for this gene (e.g., for categorical
-   * genes).
-   *
-   * @param _numValues The number of possible values.
-   */
-  public void setNumValues( int _numValues );
+  void setNumValues( int numValues );
 
 }
