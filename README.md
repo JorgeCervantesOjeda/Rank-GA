@@ -67,8 +67,8 @@ Observed outputs from the documented run:
 - structured summary:
   `runs/one-max/one_max_8_seed1234_1776480547372_summary.csv`
 - two figures generated automatically in `figures/`:
-  - `one-max-8_seed1234_evaluations.png`
-  - `one-max-8_seed1234_elapsed_ms.png`
+  - `one-max-8_seed1234_1776480547372_evaluations.png`
+  - `one-max-8_seed1234_1776480547372_elapsed_ms.png`
 
 Observed result for that run:
 

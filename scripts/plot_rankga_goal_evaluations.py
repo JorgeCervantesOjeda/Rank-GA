@@ -58,9 +58,14 @@ def slugify(raw: str) -> str:
     return slug or "runs"
 
 
-def output_stem(problem_name: str, seed: str, fallback: str) -> str:
+def output_stem(problem_name: str,
+                seed: str,
+                fallback: str) -> str:
     base = slugify(problem_name or fallback)
+    run_match = re.search(r"_seed[^_]+_(\d+)(?:_summary)?$", fallback)
     if seed and seed != "unknown":
+        if run_match:
+            return f"{base}_seed{seed}_{run_match.group(1)}"
         return f"{base}_seed{seed}"
     return base
 
