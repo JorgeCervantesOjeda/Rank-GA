@@ -19,6 +19,7 @@ public class ProblemNK
   private final int N; // Number of elements in the genome
   private final int K; // Number of neighbors influencing each element
   private final double[][] values; // Precomputed random fitness values for each gene combination
+  private final Random r;
 
   /**
    * Constructor for the ProblemNK class.
@@ -27,10 +28,14 @@ public class ProblemNK
    * @param k The number of interacting neighbors.
    */
   public ProblemNK() {
+    this( 9L );
+  }
+
+  public ProblemNK( long seed ) {
     this.N = 100;
     this.K = 3;
     this.values = new double[ N ][];
-    Random r = new Random( 9 );
+    this.r = new Random( seed );
 
     // Initialize random fitness values for each possible gene combination
     for( int i = 0;
@@ -81,7 +86,7 @@ public class ProblemNK
 
   @Override
   public String getProblemName() {
-    return "NK_" + N + "_" + K + "_" + System.currentTimeMillis();
+    return "NK_" + N + "_" + K;
   }
 
   @Override

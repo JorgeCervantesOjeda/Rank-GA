@@ -28,11 +28,18 @@ public class ProblemTS
     { 1, 2, 0, 4 },
     { 2, 15, 4, 0 }
   };
-  private Random r = new Random();
+  private final Random r;
 
   public ProblemTS( int _n ) {
+    this( _n,
+          new Random() );
+  }
+
+  public ProblemTS( int _n,
+                    Random random ) {
     System.out.println( "Initializing TSP:" );
     this.n = _n;
+    this.r = random;
 
     this.M = new double[ n ][ n ];
     for( int i = 0;

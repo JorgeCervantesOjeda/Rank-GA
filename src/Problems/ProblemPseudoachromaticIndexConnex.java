@@ -1,5 +1,6 @@
 package Problems;
 
+import java.io.File;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.Random;
@@ -7,6 +8,7 @@ import rankga.AdaptiveProblem;
 import rankga.Gene;
 import rankga.Individual;
 import rankga.Problem;
+import rankga.RunOutputPaths;
 
 /**
  * ProblemPseudoachromaticIndexConnex - Defines a specific problem related to
@@ -241,8 +243,8 @@ public class ProblemPseudoachromaticIndexConnex
     }
 
     // Initialize individual from a file
-    try( BufferedReader br = new BufferedReader( new FileReader(
-                        "init_individual_" + this.numVertices + "_" + this.numColors + ".txt" ) ) ) {
+    try( BufferedReader br = new BufferedReader(
+      new FileReader( initIndividualFile() ) ) ) {
       String line;
       int i = 0;
 
@@ -272,6 +274,18 @@ public class ProblemPseudoachromaticIndexConnex
     }
 
     return individual;
+  }
+
+  /**
+   * Build the path to the initialization file for this instance.
+   */
+  private File initIndividualFile() {
+    return RunOutputPaths.ensureFamilyDirectory(
+      ProblemPseudoachromaticIndexConnex.class
+    ).resolve( "init_individual_"
+               + this.numVertices + "_"
+               + this.numColors
+               + ".txt" ).toFile();
   }
 
   @Override

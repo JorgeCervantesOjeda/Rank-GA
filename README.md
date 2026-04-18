@@ -10,6 +10,8 @@ problem can be run, tested, and compared independently.
 - `test/`: JUnit tests for the core contracts.
 - `data/`: input files and tabular assets used by some problems.
 - `figures/`: generated plots and images kept for reference.
+- `runs/`: archived text outputs from algorithm runs, grouped by problem family,
+  plus structured CSV summaries for each run.
 - `references/`: papers and other reference PDFs.
 - `scripts/`: helper scripts used for experiments and plotting.
 - `edge_colorings/`: additional edge-coloring tooling.
@@ -45,6 +47,29 @@ ant run -Dapplication.args="--problem=ts-reals --population=20 --repetitions=10"
 If you prefer to run it directly after compilation, use the generated classes
 or JAR on the classpath and pass the same arguments.
 
+Each run writes the legacy `.txt` traces under `runs/<family>/` and also a
+structured `*_summary.csv` file with seed, repetition, evaluations, best
+fitness, elapsed time, termination reason, and a `problem_parameters` column
+with the effective problem-specific settings used in that run.
+
+## Plot Ordered Repetitions
+
+To generate the ordered plots for all repetitions, run:
+
+```bash
+python scripts/plot_rankga_goal_evaluations.py runs/tsp/reals
+```
+
+The script writes two figures and two sorted CSV files to `figures/`, naming
+them after the problem and seed when available:
+
+- one ordered by `evaluations` with a logarithmic y-axis
+- one ordered by `elapsed_ms` with a logarithmic y-axis
+
+All repetitions are included in a single ordering; the script no longer
+separates runs that reached the goal from those that did not. The sorted CSVs
+preserve the `problem_parameters` column from the summary.
+
 ## Data Files
 
 Some problems expect files under `data/`:
@@ -64,6 +89,11 @@ The current test set covers:
 - `GeneInteger` domain and mutation behavior.
 - `Population` selection behavior.
 - `RankGA` dispatch of `adapt()` for adaptive problems.
+
+## Publication Roadmap
+
+The working plan for a serious journal submission is in
+[`PLAN_PUBLICACION_REVISTA.md`](PLAN_PUBLICACION_REVISTA.md).
 
 ## License
 

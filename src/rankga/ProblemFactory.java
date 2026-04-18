@@ -20,6 +20,8 @@ import Problems.ProblemTS_Simple;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
+import java.util.StringJoiner;
 
 /**
  * ProblemFactory - explicit problem selection for RankGA.
@@ -77,30 +79,51 @@ public final class ProblemFactory {
    */
   public static Problem create( String problemId,
                                 Map<String, String> options ) {
+    long seed = readLongOption( options,
+                                "seed",
+                                System.currentTimeMillis() );
+    return create( problemId,
+                   options,
+                   seed );
+  }
+
+  /**
+   * Create a problem instance from the selected id, options, and explicit seed.
+   *
+   * @param problemId problem id, e.g. {@code ts-reals}
+   * @param options normalized options
+   * @param seed seed used for the problem constructor
+   *
+   * @return a configured problem instance
+   */
+  public static Problem create( String problemId,
+                                Map<String, String> options,
+                                long seed ) {
     String id = normalizeKey( problemId == null
                               ? "ts-reals"
                               : problemId );
     switch( id ) {
       case "tsreals":
-        return new ProblemTS_Reals();
+        return new ProblemTS_Reals( new Random( seed ) );
       case "tssimple":
-        return new ProblemTS_Simple();
+        return new ProblemTS_Simple( new Random( seed ) );
       case "tsjumps":
-        return new ProblemTS_Jumps();
+        return new ProblemTS_Jumps( new Random( seed ) );
       case "ts":
         return new ProblemTS( readIntOption( options,
                                              "n",
-                                             20 ) );
+                                             20 ),
+                              new Random( seed ) );
       case "knapsack":
-        return new ProblemKnapsack();
+        return new ProblemKnapsack( new Random( seed ) );
       case "taskassignment":
-        return new ProblemTaskAssignment();
+        return new ProblemTaskAssignment( new Random( seed ) );
       case "districts":
         return new ProblemDistricts();
       case "ic":
         return new ProblemIC();
       case "nk":
-        return new ProblemNK();
+        return new ProblemNK( seed );
       case "rastrigin":
         return new ProblemRastrigin( readIntOption( options,
                                                      "dimensions",
@@ -178,6 +201,227 @@ public final class ProblemFactory {
   }
 
   /**
+   * Describe the effective parameters used to build a problem instance.
+   * <p>
+   * These values are written to the structured summary so each repetition
+   * records the concrete problem configuration alongside the run-level
+   * metadata already tracked by RankGA.</p>
+   *
+   * @param problemId problem id, e.g. {@code ts-reals}
+   * @param options normalized options
+   * @param problem configured problem instance
+   *
+   * @return a semicolon-separated list of effective problem parameters
+   */
+  public static String describeProblemParameters( String problemId,
+                                                  Map<String, String> options,
+                                                  Problem problem ) {
+    String id = normalizeKey( problemId == null
+                              ? "ts-reals"
+                              : problemId );
+    StringJoiner parameters = new StringJoiner( ";" );
+    int genomeLength = problem == null
+                       ? -1
+                       : problem.getGenomeLength();
+
+    switch( id ) {
+      case "ts":
+        addParameter( parameters,
+                      "n",
+                      readIntOption( options,
+                                     "n",
+                                     20 ) );
+        break;
+      case "tsreals":
+      case "tssimple":
+      case "tsjumps":
+        if( genomeLength > 0 ) {
+          addParameter( parameters,
+                        "n",
+                        genomeLength );
+        }
+        break;
+      case "knapsack":
+        addParameter( parameters,
+                      "numItems",
+                      genomeLength > 0
+                      ? genomeLength
+                      : 250 );
+        addParameter( parameters,
+                      "weightCapacity",
+                      6000 );
+        addParameter( parameters,
+                      "volumeCapacity",
+                      5000 );
+        break;
+      case "taskassignment":
+        addParameter( parameters,
+                      "numTasks",
+                      genomeLength > 0
+                      ? genomeLength
+                      : 100 );
+        addParameter( parameters,
+                      "numAgents",
+                      20 );
+        break;
+      case "districts":
+        addParameter( parameters,
+                      "numSections",
+                      genomeLength > 0
+                      ? genomeLength
+                      : 3135 );
+        addParameter( parameters,
+                      "numDistricts",
+                      19 );
+        break;
+      case "nk":
+        addParameter( parameters,
+                      "N",
+                      genomeLength > 0
+                      ? genomeLength
+                      : 100 );
+        addParameter( parameters,
+                      "K",
+                      3 );
+        break;
+      case "rastrigin":
+        addParameter( parameters,
+                      "dimensions",
+                      readIntOption( options,
+                                     "dimensions",
+                                     10 ) );
+        break;
+      case "needleinhill":
+      case "needle":
+      case "nih":
+        addParameter( parameters,
+                      "genomeLength",
+                      readIntOption( options,
+                                     "genomelength",
+                                     64 ) );
+        addParameter( parameters,
+                      "plateauWidth",
+                      readIntOption( options,
+                                     "plateauwidth",
+                                     8 ) );
+        addParameter( parameters,
+                      "hillsideWidth",
+                      readIntOption( options,
+                                     "hillsidewidth",
+                                     8 ) );
+        addParameter( parameters,
+                      "needleDistance",
+                      readIntOption( options,
+                                     "needledistance",
+                                     4 ) );
+        break;
+      case "deceptive":
+        addParameter( parameters,
+                      "genomeLength",
+                      readIntOption( options,
+                                     "genomelength",
+                                     100 ) );
+        addParameter( parameters,
+                      "basinWidth",
+                      readIntOption( options,
+                                     "basinwidth",
+                                     10 ) );
+        break;
+      case "hillside":
+      case "hillsidesearch":
+        addParameter( parameters,
+                      "genomeSize",
+                      readIntOption( options,
+                                     "genomesize",
+                                     100 ) );
+        addParameter( parameters,
+                      "basinWidth",
+                      readIntOption( options,
+                                     "basinwidth",
+                                     10 ) );
+        addParameter( parameters,
+                      "basinSlope",
+                      readDoubleOption( options,
+                                        "basinslope",
+                                        0.1 ) );
+        addParameter( parameters,
+                      "optimumDistance",
+                      readIntOption( options,
+                                     "optimumdistance",
+                                     20 ) );
+        break;
+      case "niah":
+        addParameter( parameters,
+                      "genomeLength",
+                      readIntOption( options,
+                                     "genomelength",
+                                     20 ) );
+        addParameter( parameters,
+                      "numBlocks",
+                      readIntOption( options,
+                                     "numblocks",
+                                     4 ) );
+        addParameter( parameters,
+                      "needleWidth",
+                      readIntOption( options,
+                                     "needlewidth",
+                                     2 ) );
+        break;
+      case "heawood":
+        addParameter( parameters,
+                      "colors",
+                      readIntOption( options,
+                                     "colors",
+                                     3 ) );
+        break;
+      case "pseudo":
+      case "pseudoachromaticindex":
+        addParameter( parameters,
+                      "vertices",
+                      readIntOption( options,
+                                     "vertices",
+                                     22 ) );
+        addParameter( parameters,
+                      "colors",
+                      readIntOption( options,
+                                     "colors",
+                                     3 ) );
+        addParameter( parameters,
+                      "weight",
+                      readDoubleOption( options,
+                                        "weight",
+                                        0.01 ) );
+        break;
+      case "pseudoconnex":
+      case "pseudoachromaticconnex":
+      case "pseudoachromaticindexconnex":
+        addParameter( parameters,
+                      "numVertices",
+                      22 );
+        addParameter( parameters,
+                      "initialColors",
+                      2 );
+        addParameter( parameters,
+                      "weightPairs",
+                      0.01 );
+        addParameter( parameters,
+                      "weightColors",
+                      1.0 );
+        addParameter( parameters,
+                      "weightStd",
+                      0.000001 );
+        addParameter( parameters,
+                      "weightAvg",
+                      0.000000001 );
+        break;
+      default:
+        break;
+    }
+
+    return parameters.toString();
+  }
+
+  /**
    * Read an integer option with a default.
    */
   public static int readIntOption( Map<String, String> options,
@@ -202,6 +446,18 @@ public final class ProblemFactory {
   }
 
   /**
+   * Read a long option with a default.
+   */
+  public static long readLongOption( Map<String, String> options,
+                                     String key,
+                                     long defaultValue ) {
+    String value = options.get( normalizeKey( key ) );
+    return value == null
+           ? defaultValue
+           : Long.parseLong( value );
+  }
+
+  /**
    * Available problem ids for diagnostics.
    */
   public static String availableProblems() {
@@ -215,6 +471,12 @@ public final class ProblemFactory {
                                  String value ) {
     options.put( normalizeKey( key ),
                  value );
+  }
+
+  private static void addParameter( StringJoiner parameters,
+                                    String key,
+                                    Object value ) {
+    parameters.add( key + "=" + String.valueOf( value ) );
   }
 
   private static String normalizeKey( String key ) {

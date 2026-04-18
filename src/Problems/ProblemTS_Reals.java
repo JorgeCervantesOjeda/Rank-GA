@@ -40,7 +40,7 @@ public class ProblemTS_Reals
     { 1, 2, 0, 4 },
     { 2, 15, 4, 0 }
   };
-  private Random r = new Random();
+  private final Random r;
 
   private ArrayList<City> cities = new ArrayList<>();
 
@@ -105,7 +105,12 @@ public class ProblemTS_Reals
   }
 
   public ProblemTS_Reals() {
+    this( new Random() );
+  }
+
+  public ProblemTS_Reals( Random random ) {
     System.out.println( "Initializing TSP:" );
+    this.r = random;
 
     this.readDatos();
 
@@ -180,7 +185,7 @@ public class ProblemTS_Reals
 
   @Override
   public String getProblemName() {
-    return "TSP_Reals";
+    return "TSP_Reals_" + this.n;
   }
 
   @Override

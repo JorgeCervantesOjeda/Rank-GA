@@ -87,8 +87,7 @@ public class ProblemNIAH
     return "NIAH_"
            + this.GENOME_LENGTH + "_"
            + this.NUM_BLOCKS + "_"
-           + this.NEEDLE_WIDTH + "_"
-           + System.currentTimeMillis();
+           + this.NEEDLE_WIDTH;
   }
 
   @Override

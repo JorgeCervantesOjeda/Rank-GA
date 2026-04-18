@@ -14,9 +14,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import java.nio.file.Path;
 import rankga.Gene;
 import rankga.Individual;
 import rankga.Problem;
+import rankga.RunOutputPaths;
 
 /**
  * Rainbow-coloring benchmark in the Moore-cage / Heawood line of work.
@@ -127,7 +129,7 @@ public class ProblemHeawoodRainbow
   private static void writeTrajsDisj() {
     int source, dest;
     File f;
-    f = new File("trayDisjuntas.txt");
+    f = outputFile( "trayDisjuntas.txt" );
     try {
       FileWriter w = new FileWriter(f);
       BufferedWriter bw = new BufferedWriter(w);
@@ -172,7 +174,7 @@ public class ProblemHeawoodRainbow
   private static void writeTrajs() {
     int source, dest;
     File f;
-    f = new File("salida.txt");
+    f = outputFile( "salida.txt" );
     try {
       FileWriter w = new FileWriter(f);
       BufferedWriter bw = new BufferedWriter(w);
@@ -206,6 +208,13 @@ public class ProblemHeawoodRainbow
     } catch (IOException e) {
     }
     ;
+  }
+
+  private static File outputFile( String fileName ) {
+    Path directory = RunOutputPaths.ensureFamilyDirectory(
+      ProblemHeawoodRainbow.class );
+    return directory.resolve( fileName )
+      .toFile();
   }
 
   // Matriz de Heawood
@@ -502,8 +511,7 @@ public class ProblemHeawoodRainbow
 
   @Override
   public String getProblemName() {
-    return "Heawood_" + this.getGenomeLength() + "_" + System
-        .currentTimeMillis();
+    return "Heawood_" + this.getGenomeLength() + "_" + this.NUM_COLORS;
   }
 
   @Override

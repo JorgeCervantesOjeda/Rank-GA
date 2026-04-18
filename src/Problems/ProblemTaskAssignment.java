@@ -29,7 +29,10 @@ public class ProblemTaskAssignment
   private final int numAgents = 20;
 
   public ProblemTaskAssignment() {
-    Random rand = new Random();
+    this( new Random() );
+  }
+
+  public ProblemTaskAssignment( Random rand ) {
 
     // Initialize arrays with random values
     this.taskBenefits = new double[ numTasks ];

@@ -37,7 +37,7 @@ public class ProblemTS_Jumps
     { 1, 2, 0, 4 },
     { 2, 15, 4, 0 }
   };
-  private Random r = new Random();
+  private final Random r;
   private double trackFt = 0.0;
   private double covWeight = 0.5;
 
@@ -89,7 +89,12 @@ public class ProblemTS_Jumps
   }
 
   public ProblemTS_Jumps() {
+    this( new Random() );
+  }
+
+  public ProblemTS_Jumps( Random random ) {
     System.out.println( "Initializing TSP:" );
+    this.r = random;
 
     this.readDatos();
 
@@ -202,7 +207,7 @@ public class ProblemTS_Jumps
 
   @Override
   public String getProblemName() {
-    return "TSP_" + System.currentTimeMillis();
+    return "TSP_Jumps_" + this.n;
   }
 
   @Override

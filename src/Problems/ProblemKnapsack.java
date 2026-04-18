@@ -26,13 +26,17 @@ public class ProblemKnapsack
    * Constructor for the ProblemKnapsack class. Initializes the items with random weights, volumes, and values.
    */
   public ProblemKnapsack() {
+    this( new Random() );
+  }
+
+  public ProblemKnapsack( Random random ) {
     WEIGHT_CAPACITY = 6000;
     VOLUME_CAPACITY = 5000;
     NUM_ITEMS = 250;
     WEIGHT = new int[ NUM_ITEMS ];
     VOLUME = new int[ NUM_ITEMS ];
     VALUE = new int[ NUM_ITEMS ];
-    this.random = new Random();
+    this.random = random;
 
     // Initialize weights, volumes, and values for each item
     System.out.println( "Weight Capacity: " + WEIGHT_CAPACITY );

@@ -40,7 +40,7 @@ public class ProblemTS_Simple
     { 1, 2, 0, 4 },
     { 2, 15, 4, 0 }
   };
-  private Random r = new Random();
+  private final Random r;
 
   private void readDatos() {
 
@@ -90,7 +90,12 @@ public class ProblemTS_Simple
   }
 
   public ProblemTS_Simple() {
+    this( new Random() );
+  }
+
+  public ProblemTS_Simple( Random random ) {
     System.out.println( "Initializing TSP:" );
+    this.r = random;
 
     this.readDatos();
 
@@ -176,7 +181,7 @@ public class ProblemTS_Simple
 
   @Override
   public String getProblemName() {
-    return "TSP_Simple" + System.currentTimeMillis();
+    return "TSP_Simple_" + this.n;
   }
 
   @Override
