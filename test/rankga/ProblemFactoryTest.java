@@ -2,6 +2,7 @@ package rankga;
 
 import Problems.ProblemPseudoachromaticIndexConnex;
 import Problems.ProblemRastrigin;
+import Problems.ProblemOneMax;
 import Problems.ProblemTS;
 import Problems.ProblemTS_Reals;
 import java.io.ByteArrayOutputStream;
@@ -105,6 +106,25 @@ public class ProblemFactoryTest {
     assertTrue( available.contains( "ts-reals" ) );
     assertTrue( available.contains( "heawood" ) );
     assertTrue( available.contains( "pseudo-connex" ) );
+    assertTrue( available.contains( "one-max" ) );
+  }
+
+  @Test
+  public void createBuildsConfiguredOneMaxProblem() {
+    Map<String, String> options = ProblemFactory.parseArguments(
+      new String[] { "--genome-length=8" } );
+
+    Problem problem = ProblemFactory.create( "one-max",
+                                             options,
+                                             1234L );
+
+    assertTrue( problem instanceof ProblemOneMax );
+    assertEquals( 8,
+                  problem.getGenomeLength() );
+    assertEquals( "genomeLength=8",
+                  ProblemFactory.describeProblemParameters( "one-max",
+                                                            options,
+                                                            problem ) );
   }
 
   @Test

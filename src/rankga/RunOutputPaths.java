@@ -93,6 +93,9 @@ public final class RunOutputPaths {
       case "ProblemNK":
         return Paths.get( RUNS_ROOT,
                           "nk" );
+      case "ProblemOneMax":
+        return Paths.get( RUNS_ROOT,
+                          "one-max" );
       case "ProblemDeceptive":
         return Paths.get( RUNS_ROOT,
                           "deceptive" );

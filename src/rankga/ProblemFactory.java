@@ -9,6 +9,7 @@ import Problems.ProblemIC;
 import Problems.ProblemKnapsack;
 import Problems.ProblemNIAH;
 import Problems.ProblemNK;
+import Problems.ProblemOneMax;
 import Problems.ProblemPseudoachromaticIndex;
 import Problems.ProblemPseudoachromaticIndexConnex;
 import Problems.ProblemRastrigin;
@@ -124,6 +125,10 @@ public final class ProblemFactory {
         return new ProblemIC();
       case "nk":
         return new ProblemNK( seed );
+      case "onemax":
+        return new ProblemOneMax( readIntOption( options,
+                                                 "genomelength",
+                                                 8 ) );
       case "rastrigin":
         return new ProblemRastrigin( readIntOption( options,
                                                      "dimensions",
@@ -283,6 +288,13 @@ public final class ProblemFactory {
         addParameter( parameters,
                       "K",
                       3 );
+        break;
+      case "onemax":
+        addParameter( parameters,
+                      "genomeLength",
+                      readIntOption( options,
+                                     "genomelength",
+                                     8 ) );
         break;
       case "rastrigin":
         addParameter( parameters,
@@ -462,8 +474,8 @@ public final class ProblemFactory {
    */
   public static String availableProblems() {
     return "ts-reals, ts-simple, ts-jumps, ts, knapsack, task-assignment, "
-           + "districts, ic, nk, rastrigin, needle, deceptive, hillside, "
-           + "niah, heawood, pseudo, pseudo-connex";
+           + "districts, ic, nk, one-max, rastrigin, needle, deceptive, "
+           + "hillside, niah, heawood, pseudo, pseudo-connex";
   }
 
   private static void putOption( Map<String, String> options,

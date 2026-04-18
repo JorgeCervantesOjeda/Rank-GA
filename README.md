@@ -40,6 +40,7 @@ Examples:
 
 ```bash
 ant run -Dapplication.args="--help"
+ant run -Dapplication.args="--problem=one-max --genome-length=8 --population=20 --repetitions=100 --seed=1234"
 ant run -Dapplication.args="--problem=heawood --colors=3"
 ant run -Dapplication.args="--problem=ts-reals --population=20 --repetitions=10"
 ```
@@ -51,6 +52,44 @@ Each run writes the legacy `.txt` traces under `runs/<family>/` and also a
 structured `*_summary.csv` file with seed, repetition, evaluations, best
 fitness, elapsed time, termination reason, and a `problem_parameters` column
 with the effective problem-specific settings used in that run.
+
+### Reproducible Example: OneMax (8 bits)
+
+This is the smallest complete example currently documented in the repository:
+
+```bash
+ant run -Dapplication.args="--problem=one-max --genome-length=8 --population=20 --repetitions=100 --seed=1234"
+```
+
+Observed outputs from the documented run:
+
+- legacy traces under `runs/one-max/`
+- structured summary:
+  `runs/one-max/one_max_8_seed1234_1776480547372_summary.csv`
+- two figures generated automatically in `figures/`:
+  - `one-max-8_seed1234_evaluations.png`
+  - `one-max-8_seed1234_elapsed_ms.png`
+
+Observed result for that run:
+
+- `100` repetitions
+- `100` reached the goal fitness
+- `0` terminated by patience
+- evaluation counts ranged from `20` to `380`
+
+The summary contains one row per repetition with these key fields:
+
+- `seed`
+- `repetition`
+- `evaluations`
+- `best_fitness`
+- `goal_fitness`
+- `elapsed_ms`
+- `termination_reason`
+- `problem_parameters`
+
+For the documented OneMax example, `problem_parameters` is
+`genomeLength=8`.
 
 ## Plot Ordered Repetitions
 
