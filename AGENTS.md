@@ -43,6 +43,27 @@ Si una validación adicional requiere revisión manual, el agente debe decirlo e
 
 ---
 
+## Regla operativa para Ant en Windows
+
+En este repositorio, el agente no debe ejecutar `ant` invocando `ant.bat`
+directamente desde PowerShell cuando necesite pasar `-Dapplication.args=...`
+u otras propiedades complejas de línea de comandos.
+
+Debe usar una invocación a través de `cmd /c`, o en su defecto ejecutar la
+clase Java directamente, porque en este entorno PowerShell puede romper el
+parseo de argumentos y hacer que `RankGA` corra con el problema por defecto
+en lugar del solicitado.
+
+Por tanto:
+
+- no debe usar `& ant.bat ...` desde PowerShell para corridas con argumentos;
+- debe preferir `cmd /c "\"...\\ant.bat\" \"-Dapplication.args=...\" run"` si
+  necesita usar Ant;
+- y para experimentos repetidos debe preferir `java -cp ... rankga.RankGA ...`
+  una vez compilado el proyecto.
+
+---
+
 ## Contexto del curso
 
 ### Perfil del curso
