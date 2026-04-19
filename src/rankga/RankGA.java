@@ -292,6 +292,7 @@ public class RankGA {
     Path summaryFile = outputDirectory.resolve(
       problemName + "_seed" + seed + "_" + runId
       + "_summary.csv" );
+    Path summaryMetadataFile = metadataFileFor( summaryFile );
 
     System.out.println( "Patience: " + convertMillisToTimeFormat( patienceMillis ) );
     System.out.println( "Seed: " + seed );
@@ -305,12 +306,27 @@ public class RankGA {
                         + selectedPatienceResetPolicy.name().toLowerCase(
                           Locale.ROOT ) );
 
+    writeStructuredSummaryMetadata( summaryMetadataFile,
+                                    problem,
+                                    problemName,
+                                    problemParameters,
+                                    seed,
+                                    runId,
+                                    populationSize,
+                                    repetitions,
+                                    problem.getGoalFt(),
+                                    patienceMillis,
+                                    selectedIncumbentUpdatePolicy,
+                                    selectedPatienceResetPolicy,
+                                    problemRunName );
+
     // Outer loop: repeat full runs to assess robustness / variance.
     for( repetition = 0; repetition < repetitions; repetition++ ) {
 
       // --- Reset run-level clocks/state -------------------------------------------------------
       startTime = new Date();
-      Random repetitionRandom = new Random( seed + repetition );
+      long repetitionSeed = seed + repetition;
+      Random repetitionRandom = new Random( repetitionSeed );
       long evaluations = initializePopulation( problem,
                                                populationSize,
                                                repetitionRandom );
@@ -356,23 +372,12 @@ public class RankGA {
               problemRunName );
 
       appendStructuredSummary( summaryFile,
-                               problem,
-                               problemName,
-                               problemParameters,
-                               seed,
-                               runId,
                                repetition,
-                               populationSize,
-                               repetitions,
+                               repetitionSeed,
                                evaluations,
                                population.getFittest().getFitness(),
                                now.getTime() - startTime.getTime(),
-                               terminationReason,
-                               problem.getGoalFt(),
-                               patienceMillis,
-                               selectedIncumbentUpdatePolicy,
-                               selectedPatienceResetPolicy,
-                               problemRunName );
+                               terminationReason );
     }
 
     generatePlots( summaryFile );
@@ -458,75 +463,102 @@ public class RankGA {
   /**
    * Append one structured CSV row for a repetition.
    *
-   * @param summaryFile     structured output file
-   * @param problem         owning problem
-   * @param problemParameters semicolon-separated effective problem settings
-   * @param seed            run seed
-   * @param runId           timestamp identifier for the full run
-   * @param repetitionIndex repetition index
-   * @param populationSize  population size N
-   * @param repetitions     total number of repetitions requested
-   * @param evaluations     number of fitness evaluations performed
-   * @param bestFitness     final best fitness
-   * @param elapsedMillis   elapsed time in milliseconds
-   * @param terminationReason reason the run stopped
-   * @param goalFitness     goal fitness threshold
-   * @param problemRunName  file prefix used by the legacy txt logs
+   * The per-row CSV keeps only repetition-varying data. Run-level metadata is
+   * written once to the companion {@code *_summary_meta.csv} file.
    */
   private static void appendStructuredSummary( Path summaryFile,
-                                               Problem problem,
-                                               String problemName,
-                                               String problemParameters,
-                                               long seed,
-                                               long runId,
                                                int repetitionIndex,
-                                               int populationSize,
-                                               int repetitions,
+                                               long repetitionSeed,
                                                long evaluations,
                                                double bestFitness,
                                                long elapsedMillis,
-                                               String terminationReason,
-                                               double goalFitness,
-                                               long patienceMillis,
-                                               IncumbentUpdatePolicy incumbentUpdatePolicy,
-                                               PatienceResetPolicy patienceResetPolicy,
-                                               String problemRunName ) {
+                                               String terminationReason ) {
     boolean writeHeader = !Files.exists( summaryFile );
     try( PrintWriter out = new PrintWriter(
                      new BufferedWriter( new FileWriter( summaryFile.toFile(),
                                                          true ) ) ) ) {
       if( writeHeader ) {
         out.println(
-          "algorithm,problem_class,problem_name,problem_parameters,seed,run_id,repetition,population_size,repetitions,evaluations,best_fitness,elapsed_ms,termination_reason,goal_fitness,patience_ms,incumbent_update_policy,patience_reset_policy,output_prefix" );
+          "repetition,repetition_seed,evaluations,best_fitness,elapsed_ms,termination_reason" );
       }
       out.println(
           String.join(
           ",",
-          csvField( "RankGA" ),
-          csvField( problem.getClass().getSimpleName() ),
-          csvField( problemName ),
-          csvField( problemParameters ),
-          Long.toString( seed ),
-          Long.toString( runId ),
           Integer.toString( repetitionIndex ),
-          Integer.toString( populationSize ),
-          Integer.toString( repetitions ),
+          Long.toString( repetitionSeed ),
           Long.toString( evaluations ),
           String.format( Locale.ROOT,
                          "%.17g",
                          bestFitness ),
           Long.toString( elapsedMillis ),
-          csvField( terminationReason ),
-          String.format( Locale.ROOT,
-                         "%.17g",
-                         goalFitness ),
-          Long.toString( patienceMillis ),
-          csvField( incumbentUpdatePolicy.name().toLowerCase( Locale.ROOT ) ),
-          csvField( patienceResetPolicy.name().toLowerCase( Locale.ROOT ) ),
-          csvField( problemRunName ) ) );
+          csvField( terminationReason ) ) );
     } catch( IOException e ) {
       System.out.println( e );
     }
+  }
+
+  private static void writeStructuredSummaryMetadata(
+    Path metadataFile,
+    Problem problem,
+    String problemName,
+    String problemParameters,
+    long seed,
+    long runId,
+    int populationSize,
+    int repetitions,
+    double goalFitness,
+    long patienceMillis,
+    IncumbentUpdatePolicy incumbentUpdatePolicy,
+    PatienceResetPolicy patienceResetPolicy,
+    String problemRunName ) {
+    try( PrintWriter out = new PrintWriter(
+                     new BufferedWriter( new FileWriter( metadataFile.toFile(),
+                                                         false ) ) ) ) {
+      out.println( "key,value" );
+      out.println( csvField( "algorithm" ) + "," + csvField( "RankGA" ) );
+      out.println( csvField( "problem_class" ) + ","
+                   + csvField( problem.getClass().getSimpleName() ) );
+      out.println( csvField( "problem_name" ) + "," + csvField( problemName ) );
+      out.println( csvField( "problem_parameters" ) + ","
+                   + csvField( problemParameters ) );
+      out.println( csvField( "base_seed" ) + ","
+                   + csvSpreadsheetTextField( Long.toString( seed ) ) );
+      out.println( csvField( "run_id" ) + ","
+                   + csvSpreadsheetTextField( Long.toString( runId ) ) );
+      out.println( csvField( "population_size" ) + ","
+                   + Integer.toString( populationSize ) );
+      out.println( csvField( "repetitions" ) + ","
+                   + Integer.toString( repetitions ) );
+      out.println( csvField( "goal_fitness" ) + ","
+                   + String.format( Locale.ROOT,
+                                    "%.17g",
+                                    goalFitness ) );
+      out.println( csvField( "patience_ms" ) + ","
+                   + Long.toString( patienceMillis ) );
+      out.println( csvField( "incumbent_update_policy" ) + ","
+                   + csvField( incumbentUpdatePolicy.name().toLowerCase(
+                     Locale.ROOT ) ) );
+      out.println( csvField( "patience_reset_policy" ) + ","
+                   + csvField( patienceResetPolicy.name().toLowerCase(
+                     Locale.ROOT ) ) );
+      out.println( csvField( "output_prefix" ) + ","
+                   + csvField( problemRunName ) );
+    } catch( IOException e ) {
+      System.out.println( e );
+    }
+  }
+
+  private static Path metadataFileFor( Path csvFile ) {
+    String fileName = csvFile.getFileName().toString();
+    int extensionIndex = fileName.lastIndexOf( '.' );
+    String stem = extensionIndex >= 0
+                  ? fileName.substring( 0,
+                                        extensionIndex )
+                  : fileName;
+    String extension = extensionIndex >= 0
+                       ? fileName.substring( extensionIndex )
+                       : "";
+    return csvFile.resolveSibling( stem + "_meta" + extension );
   }
 
   /**
@@ -793,6 +825,12 @@ public class RankGA {
   private static String csvField( String value ) {
     return "\"" + value.replace( "\"",
                                  "\"\"" ) + "\"";
+  }
+
+  private static String csvSpreadsheetTextField( String value ) {
+    // Leading apostrophe keeps long integer-like identifiers as text in
+    // spreadsheet tools, avoiding scientific notation in views such as run_id.
+    return csvField( "'" + value );
   }
 
 }

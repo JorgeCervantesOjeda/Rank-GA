@@ -75,23 +75,32 @@ public class RankGAAdaptiveTest {
 
     Path summaryFile = findSummaryFile( ADAPTIVE_PREFIX,
                                         1234L );
+    Path metadataFile = metadataFileFor( summaryFile );
     List<String> lines = Files.readAllLines( summaryFile,
                                              StandardCharsets.UTF_8 );
+    List<String> metadataLines = Files.readAllLines( metadataFile,
+                                                     StandardCharsets.UTF_8 );
 
     assertEquals( 2,
                   lines.size() );
     assertTrue( lines.get( 0 ).contains(
-      "algorithm,problem_class,problem_name,problem_parameters,seed,run_id,repetition,population_size,repetitions,evaluations,best_fitness,elapsed_ms,termination_reason,goal_fitness,patience_ms,incumbent_update_policy,patience_reset_policy,output_prefix" ) );
-    assertTrue( lines.get( 1 ).contains( "\"RankGA\"" ) );
-    assertTrue( lines.get( 1 ).contains( "\"adaptive_stub_problem\"" ) );
-    assertTrue( lines.get( 1 ).contains( "\"mode=adaptive;goal=1.0\"" ) );
+      "repetition,repetition_seed,evaluations,best_fitness,elapsed_ms,termination_reason" ) );
     assertTrue( lines.get( 1 ).contains( ",1234," ) );
     assertTrue( lines.get( 1 ).contains( "\"goal\"" ) );
-    assertTrue( lines.get( 1 ).contains( ",60000," ) );
-    assertTrue( lines.get( 1 ).contains( "\"strict\"" ) );
-    assertTrue( lines.get( 1 ).contains( "\"fitness\"" ) );
     assertEquals( "3",
-                  splitCsvLine( lines.get( 1 ) ).get( 9 ) );
+                  splitCsvLine( lines.get( 1 ) ).get( 2 ) );
+    assertTrue( metadataLines.contains( "\"algorithm\",\"RankGA\"" ) );
+    assertTrue( metadataLines.contains(
+      "\"problem_name\",\"adaptive_stub_problem\"" ) );
+    assertTrue( metadataLines.contains(
+      "\"problem_parameters\",\"mode=adaptive;goal=1.0\"" ) );
+    assertTrue( metadataLines.contains( "\"base_seed\",\"'1234\"" ) );
+    assertTrue( metadataLines.contains( "\"population_size\",3" ) );
+    assertTrue( metadataLines.contains( "\"patience_ms\",60000" ) );
+    assertTrue( metadataLines.contains(
+      "\"incumbent_update_policy\",\"strict\"" ) );
+    assertTrue( metadataLines.contains(
+      "\"patience_reset_policy\",\"fitness\"" ) );
   }
 
   @Test
@@ -114,7 +123,8 @@ public class RankGAAdaptiveTest {
                                         1234L );
     List<String> summaryLines = Files.readAllLines( summaryFile,
                                                     StandardCharsets.UTF_8 );
-    Path runPrefix = Paths.get( readOutputPrefix( summaryLines.get( 1 ) ) );
+    Path runPrefix = Paths.get( readMetadataValue( metadataFileFor( summaryFile ),
+                                                   "output_prefix" ) );
 
     List<String> runLines = Files.readAllLines( Paths.get( runPrefix.toString()
                                                            + ".txt" ),
@@ -194,17 +204,32 @@ public class RankGAAdaptiveTest {
     }
   }
 
-  private static String readOutputPrefix( String summaryLine ) {
-    int lastComma = summaryLine.lastIndexOf( ',' );
-    String outputPrefix = summaryLine.substring( lastComma + 1 )
-      .trim();
-    if( outputPrefix.startsWith( "\"" )
-        && outputPrefix.endsWith( "\"" )
-        && outputPrefix.length() >= 2 ) {
-      return outputPrefix.substring( 1,
-                                     outputPrefix.length() - 1 );
+  private static Path metadataFileFor( Path summaryFile ) {
+    String fileName = summaryFile.getFileName().toString();
+    int extensionIndex = fileName.lastIndexOf( '.' );
+    String stem = extensionIndex >= 0
+                  ? fileName.substring( 0,
+                                        extensionIndex )
+                  : fileName;
+    String extension = extensionIndex >= 0
+                       ? fileName.substring( extensionIndex )
+                       : "";
+    return summaryFile.resolveSibling( stem + "_meta" + extension );
+  }
+
+  private static String readMetadataValue( Path metadataFile,
+                                           String key )
+    throws IOException {
+    List<String> lines = Files.readAllLines( metadataFile,
+                                             StandardCharsets.UTF_8 );
+    for( int i = 1; i < lines.size(); i++ ) {
+      List<String> fields = splitCsvLine( lines.get( i ) );
+      if( fields.size() >= 2
+          && key.equals( fields.get( 0 ) ) ) {
+        return fields.get( 1 );
+      }
     }
-    return outputPrefix;
+    throw new IOException( "Missing metadata key " + key );
   }
 
   private static List<String> splitCsvLine( String line ) {

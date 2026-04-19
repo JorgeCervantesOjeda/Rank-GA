@@ -26,8 +26,32 @@ def default_output_dir() -> Path:
 
 def load_summary_rows(summary_path: Path) -> list[dict[str, str]]:
     with summary_path.open("r", encoding="utf-8", newline="") as handle:
-      reader = csv.DictReader(handle)
-      return list(reader)
+        reader = csv.DictReader(handle)
+        return list(reader)
+
+
+def metadata_path_for(csv_path: Path) -> Path:
+    return csv_path.with_name(f"{csv_path.stem}_meta{csv_path.suffix}")
+
+
+def load_metadata(csv_path: Path) -> dict[str, str]:
+    metadata_path = metadata_path_for(csv_path)
+    if not metadata_path.exists():
+        return {}
+    with metadata_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        result: dict[str, str] = {}
+        for row in reader:
+            key = row.get("key", "").strip()
+            if key:
+                result[key] = row.get("value", "")
+        return result
+
+
+def strip_spreadsheet_text_prefix(value: str) -> str:
+    if value.startswith("'"):
+        return value[1:]
+    return value
 
 def parse_repetition(row: dict[str, str]) -> int:
     return int(row.get("repetition", "0"))
@@ -41,11 +65,26 @@ def parse_elapsed_ms(row: dict[str, str]) -> int:
     return int(row.get("elapsed_ms", "0"))
 
 
-def parse_seed(row: dict[str, str]) -> str:
-    return row.get("seed", "unknown")
+def parse_repetition_seed(row: dict[str, str]) -> str:
+    return strip_spreadsheet_text_prefix(
+        row.get("repetition_seed", row.get("seed", "unknown"))
+    )
 
 
-def parse_problem_name(row: dict[str, str], fallback: str) -> str:
+def parse_base_seed(metadata: dict[str, str], rows: list[dict[str, str]]) -> str:
+    if metadata.get("base_seed"):
+        return strip_spreadsheet_text_prefix(metadata["base_seed"])
+    if rows:
+        return strip_spreadsheet_text_prefix(rows[0].get("seed", "unknown"))
+    return "unknown"
+
+
+def parse_problem_name(metadata: dict[str, str],
+                       row: dict[str, str],
+                       fallback: str) -> str:
+    value = metadata.get("problem_name", "").strip()
+    if value:
+        return value
     value = row.get("problem_name", "").strip()
     return value or fallback
 
@@ -59,14 +98,18 @@ def slugify(raw: str) -> str:
 
 
 def output_stem(problem_name: str,
-                seed: str,
-                fallback: str) -> str:
+                base_seed: str,
+                fallback: str,
+                metadata: dict[str, str]) -> str:
     base = slugify(problem_name or fallback)
+    run_id = strip_spreadsheet_text_prefix(metadata.get("run_id", "").strip())
     run_match = re.search(r"_seed[^_]+_(\d+)(?:_summary)?$", fallback)
-    if seed and seed != "unknown":
+    if base_seed and base_seed != "unknown":
+        if run_id:
+            return f"{base}_seed{base_seed}_{run_id}"
         if run_match:
-            return f"{base}_seed{seed}_{run_match.group(1)}"
-        return f"{base}_seed{seed}"
+            return f"{base}_seed{base_seed}_{run_match.group(1)}"
+        return f"{base}_seed{base_seed}"
     return base
 
 
@@ -77,7 +120,6 @@ def ordered_rows(rows: list[dict[str, str]], metric_key: str) -> list[dict[str, 
 
 def write_ordered_csv(output_path: Path,
                       ordered_rows: list[dict[str, str]],
-                      source_name: str,
                       metric_key: str) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8", newline="") as handle:
@@ -85,49 +127,40 @@ def write_ordered_csv(output_path: Path,
         writer.writerow([
             "order",
             "repetition",
-            metric_key,
+            "repetition_seed",
             "evaluations",
             "elapsed_ms",
-            "seed",
-            "problem_name",
-            "problem_parameters",
             "termination_reason",
             "best_fitness",
-            "goal_fitness",
-            "source_summary",
         ])
         for order, row in enumerate(ordered_rows, start=1):
             writer.writerow([
                 order,
                 parse_repetition(row),
-                row.get(metric_key, ""),
+                parse_repetition_seed(row),
                 parse_evaluations(row),
                 parse_elapsed_ms(row),
-                parse_seed(row),
-                parse_problem_name(row, source_name),
-                row.get("problem_parameters", ""),
                 row.get("termination_reason", ""),
                 row.get("best_fitness", ""),
-                row.get("goal_fitness", ""),
-                source_name,
             ])
 
 
 def plot_metric(summary_path: Path,
                 output_dir: Path,
                 rows: list[dict[str, str]],
+                metadata: dict[str, str],
                 problem_name: str,
-                seed: str,
+                base_seed: str,
                 metric_key: str,
                 metric_label: str,
                 log_scale: bool) -> Path:
     ordered = ordered_rows(rows, metric_key)
     output_dir.mkdir(parents=True, exist_ok=True)
-    stem = output_stem(problem_name, seed, summary_path.stem)
+    stem = output_stem(problem_name, base_seed, summary_path.stem, metadata)
     suffix = metric_key
 
     ordered_csv = output_dir / f"{stem}_{suffix}_sorted.csv"
-    write_ordered_csv(ordered_csv, ordered, summary_path.name, metric_key)
+    write_ordered_csv(ordered_csv, ordered, metric_key)
 
     fig, ax = plt.subplots(figsize=(9, 5.5))
     x_values = list(range(1, len(ordered) + 1))
@@ -144,7 +177,7 @@ def plot_metric(summary_path: Path,
         ax.set_yscale("log")
     ax.set_xlabel("Repetition order (smallest to largest)")
     ax.set_ylabel(metric_label)
-    ax.set_title(f"{problem_name} | seed {seed} | ordered by {metric_key}")
+    ax.set_title(f"{problem_name} | seed {base_seed} | ordered by {metric_key}")
     ax.grid(True, which="both", linestyle=":", linewidth=0.7, alpha=0.8)
 
     if len(ordered) <= 24:
@@ -175,22 +208,25 @@ def plot_summary(summary_path: Path, output_dir: Path) -> list[Path]:
     if not rows:
         raise ValueError(f"{summary_path} has no rows")
 
-    problem_name = parse_problem_name(rows[0], summary_path.stem)
-    seed = parse_seed(rows[0])
+    metadata = load_metadata(summary_path)
+    problem_name = parse_problem_name(metadata, rows[0], summary_path.stem)
+    base_seed = parse_base_seed(metadata, rows)
     return [
         plot_metric(summary_path,
                     output_dir,
                     rows,
+                    metadata,
                     problem_name,
-                    seed,
+                    base_seed,
                     "evaluations",
                     "Fitness evaluations until termination (log scale)",
                     True),
         plot_metric(summary_path,
                     output_dir,
                     rows,
+                    metadata,
                     problem_name,
-                    seed,
+                    base_seed,
                     "elapsed_ms",
                     "Elapsed time until termination (ms, log scale)",
                     True),

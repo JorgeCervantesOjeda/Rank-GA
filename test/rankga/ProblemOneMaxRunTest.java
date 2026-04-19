@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 import org.junit.After;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Regression test for the documented OneMax example.
@@ -44,16 +45,17 @@ public class ProblemOneMaxRunTest {
                                   "genomeLength=8" ) );
 
     Path summaryFile = findSummaryFile();
+    Path metadataFile = metadataFileFor( summaryFile );
     List<String> lines = Files.readAllLines( summaryFile,
                                              StandardCharsets.UTF_8 );
+    List<String> metadataLines = Files.readAllLines( metadataFile,
+                                                     StandardCharsets.UTF_8 );
 
     assertEquals( 101,
                   lines.size() );
 
     int terminationIndex = columnIndex( lines.get( 0 ),
                                         "termination_reason" );
-    int parametersIndex = columnIndex( lines.get( 0 ),
-                                       "problem_parameters" );
 
     int goal = 0;
     int patience = 0;
@@ -64,14 +66,14 @@ public class ProblemOneMaxRunTest {
       } else if( "patience".equals( fields.get( terminationIndex ) ) ) {
         patience++;
       }
-      assertEquals( "genomeLength=8",
-                    fields.get( parametersIndex ) );
     }
 
     assertEquals( 100,
                   goal );
     assertEquals( 0,
                   patience );
+    assertTrue( metadataLines.contains(
+      "\"problem_parameters\",\"genomeLength=8\"" ) );
   }
 
   private static void runQuietly( ThrowingRunnable action ) throws Exception {
@@ -123,6 +125,19 @@ public class ProblemOneMaxRunTest {
       }
       throw e;
     }
+  }
+
+  private static Path metadataFileFor( Path summaryFile ) {
+    String fileName = summaryFile.getFileName().toString();
+    int extensionIndex = fileName.lastIndexOf( '.' );
+    String stem = extensionIndex >= 0
+                  ? fileName.substring( 0,
+                                        extensionIndex )
+                  : fileName;
+    String extension = extensionIndex >= 0
+                       ? fileName.substring( extensionIndex )
+                       : "";
+    return summaryFile.resolveSibling( stem + "_meta" + extension );
   }
 
   private static void deleteFigureFiles() throws IOException {
