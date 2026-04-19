@@ -21,6 +21,46 @@ problem can be run, tested, and compared independently.
 - JDK 8 or newer.
 - Ant or NetBeans.
 
+Ant is useful for the standard project lifecycle, but it is not required to run
+the algorithm if you use the provided launch scripts.
+
+## Quick Start
+
+### Windows
+
+Run the test suite:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run-tests.ps1
+```
+
+Run the default problem (`one-max`, 8 bits):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run-rankga.ps1
+```
+
+Run a custom experiment:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run-rankga.ps1 --problem=one-max --genome-length=100 --population=20 --repetitions=100 --seed=1234
+```
+
+You can also use the cmd wrapper:
+
+```cmd
+scripts\run-rankga.cmd --problem=heawood --colors=3
+```
+
+### Linux / macOS
+
+If Ant is available:
+
+```bash
+ant clean test
+ant run -Dapplication.args="--problem=one-max --genome-length=8 --population=20 --repetitions=100 --seed=1234"
+```
+
 ## Build And Test
 
 From the project root:
@@ -45,6 +85,21 @@ the bundled `lib/junit-4.7.jar`.
 ## Run
 
 The main entry point is `rankga.RankGA`.
+
+### Recommended Windows Launcher
+
+Use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run-rankga.ps1 --problem=one-max --genome-length=8 --population=20 --repetitions=100 --seed=1234
+```
+
+This launcher compiles `src/` and then runs `rankga.RankGA` directly with
+`java -cp build\classes`.
+
+Do not rely on `ant run -Dapplication.args=...` from PowerShell in this
+environment. PowerShell may pass those arguments incorrectly to `ant.bat`,
+causing RankGA to launch the default problem instead of the requested one.
 
 Examples:
 
