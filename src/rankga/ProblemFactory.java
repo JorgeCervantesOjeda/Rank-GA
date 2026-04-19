@@ -91,7 +91,7 @@ public final class ProblemFactory {
   /**
    * Create a problem instance from the selected id, options, and explicit seed.
    *
-   * @param problemId problem id, e.g. {@code ts-reals}
+   * @param problemId problem id, e.g. {@code one-max}
    * @param options normalized options
    * @param seed seed used for the problem constructor
    *
@@ -101,7 +101,7 @@ public final class ProblemFactory {
                                 Map<String, String> options,
                                 long seed ) {
     String id = normalizeKey( problemId == null
-                              ? "ts-reals"
+                              ? "one-max"
                               : problemId );
     switch( id ) {
       case "tsreals":
@@ -222,7 +222,7 @@ public final class ProblemFactory {
                                                   Map<String, String> options,
                                                   Problem problem ) {
     String id = normalizeKey( problemId == null
-                              ? "ts-reals"
+                              ? "one-max"
                               : problemId );
     StringJoiner parameters = new StringJoiner( ";" );
     int genomeLength = problem == null

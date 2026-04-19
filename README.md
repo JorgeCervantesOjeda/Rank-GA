@@ -50,6 +50,7 @@ Examples:
 
 ```bash
 ant run -Dapplication.args="--help"
+ant run -Dapplication.args=""
 ant run -Dapplication.args="--problem=one-max --genome-length=8 --population=20 --repetitions=100 --seed=1234"
 ant run -Dapplication.args="--problem=heawood --colors=3"
 ant run -Dapplication.args="--problem=ts-reals --population=20 --repetitions=10"
@@ -59,10 +60,12 @@ ant run -Dapplication.args="--problem=one-max --genome-length=8 --population=20 
 If you prefer to run it directly after compilation, use the generated classes
 or JAR on the classpath and pass the same arguments.
 
-Each run writes the legacy `.txt` traces under `runs/<family>/` and also a
-structured `*_summary.csv` file with seed, repetition, evaluations, best
-fitness, elapsed time, termination reason, and a `problem_parameters` column
-with the effective problem-specific settings used in that run.
+If no `--problem` is provided, the launcher defaults to `one-max` with
+`genome-length=8`.
+
+Each run writes the legacy `.txt` traces under `runs/<family>/`, a structured
+`*_summary.csv` with one row per repetition, and a companion
+`*_summary_meta.csv` with the run-level metadata shared by all repetitions.
 
 The launcher also accepts:
 
@@ -102,20 +105,25 @@ Observed result for that run:
 
 The summary contains one row per repetition with these key fields:
 
-- `seed`
 - `repetition`
+- `repetition_seed`
 - `evaluations`
 - `best_fitness`
-- `goal_fitness`
 - `elapsed_ms`
 - `termination_reason`
+
+The companion `*_summary_meta.csv` contains the repeated run metadata:
+
+- `problem_name`
+- `problem_parameters`
+- `base_seed`
+- `run_id`
+- `population_size`
+- `repetitions`
+- `goal_fitness`
 - `patience_ms`
 - `incumbent_update_policy`
 - `patience_reset_policy`
-- `problem_parameters`
-
-For the documented OneMax example, `problem_parameters` is
-`genomeLength=8`.
 
 ## Plot Ordered Repetitions
 
@@ -133,7 +141,8 @@ them after the problem and seed when available:
 
 All repetitions are included in a single ordering; the script no longer
 separates runs that reached the goal from those that did not. The sorted CSVs
-preserve the `problem_parameters` column from the summary.
+keep only repetition-varying data; repeated metadata stays in the
+`*_summary_meta.csv` file produced by the run.
 
 ## Data Files
 

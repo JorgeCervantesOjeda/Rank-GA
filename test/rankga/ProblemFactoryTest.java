@@ -4,7 +4,6 @@ import Problems.ProblemPseudoachromaticIndexConnex;
 import Problems.ProblemRastrigin;
 import Problems.ProblemOneMax;
 import Problems.ProblemTS;
-import Problems.ProblemTS_Reals;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.LinkedHashMap;
@@ -137,11 +136,13 @@ public class ProblemFactoryTest {
   }
 
   @Test
-  public void createDefaultsToTsRealsWhenProblemIdIsNull() {
+  public void createDefaultsToOneMaxWhenProblemIdIsNull() {
     Problem problem = runQuietly( () -> ProblemFactory.create( null,
                                                                new LinkedHashMap<>() ) );
 
-    assertTrue( problem instanceof ProblemTS_Reals );
+    assertTrue( problem instanceof ProblemOneMax );
+    assertEquals( 8,
+                  problem.getGenomeLength() );
   }
 
   @Test

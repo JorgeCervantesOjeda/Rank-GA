@@ -60,7 +60,7 @@ import static rankga.ConvertTime.convertMillisToTimeFormat;
  * <li>Patience is measured in wall-clock time and its reset semantics are
  * configurable: by strict fitness improvement or by incumbent movement.</li>
  * <li>The default launch problem is selected via {@code --problem}; if absent,
- * {@code ts-reals} is used.</li>
+ * {@code one-max} is used.</li>
  * </ul>
  *
  * Author: Jorge Cervantes — Universidad Autónoma Metropolitana, Mexico City
@@ -161,7 +161,7 @@ public class RankGA {
   public static void main( String[] args ) {
     Map<String, String> options = ProblemFactory.parseArguments( args );
     String problemId = options.getOrDefault( "problem",
-                                             "ts-reals" );
+                                             "one-max" );
     long seed = ProblemFactory.readLongOption( options,
                                                 "seed",
                                                 System.currentTimeMillis() );
@@ -818,6 +818,7 @@ public class RankGA {
     System.out.println( "Problems: " + ProblemFactory.availableProblems() );
     System.out.println( "Examples:" );
     System.out.println( "  java rankga.RankGA" );
+    System.out.println( "  java rankga.RankGA --problem=one-max --genome-length=8 --seed=1234" );
     System.out.println( "  java rankga.RankGA --problem=heawood --colors=3 --seed=1234" );
     System.out.println( "  java rankga.RankGA ts-reals --population=30 --repetitions=5" );
   }
