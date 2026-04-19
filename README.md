@@ -134,6 +134,42 @@ allows the incumbent to move to a different genotype with the same fitness.
 resets patience whenever the incumbent changes according to the selected
 incumbent policy.
 
+### Default Parameters
+
+#### Global launcher defaults
+
+| Parameter | Default |
+| --- | --- |
+| `--problem` | `one-max` |
+| `--seed` | current system time |
+| `--population` | `20` |
+| `--repetitions` | `10` |
+| `--patience-ms` | `60000` |
+| `--incumbent-update` | `strict` |
+| `--patience-reset` | `fitness` |
+
+#### Problem-specific defaults
+
+| Problem | Defaults |
+| --- | --- |
+| `one-max` | `genome-length=8` |
+| `ts` | `n=20` |
+| `ts-reals` | no CLI size parameter exposed; instance size comes from the problem data |
+| `ts-simple` | no CLI parameter exposed |
+| `ts-jumps` | no CLI parameter exposed |
+| `knapsack` | `numItems=250`, `weightCapacity=6000`, `volumeCapacity=5000` |
+| `task-assignment` | `numTasks=100`, `numAgents=20` |
+| `districts` | `numSections=3135`, `numDistricts=19` |
+| `nk` | `N=100`, `K=3` |
+| `rastrigin` | `dimensions=10` |
+| `needle` | `genome-length=64`, `plateau-width=8`, `hillside-width=8`, `needle-distance=4` |
+| `deceptive` | `genome-length=100`, `basin-width=10` |
+| `hillside` | `genome-size=100`, `basin-width=10`, `basin-slope=0.1`, `optimum-distance=20` |
+| `niah` | `genome-length=20`, `num-blocks=4`, `needle-width=2` |
+| `heawood` | `colors=3` |
+| `pseudo` | `vertices=22`, `colors=3`, `weight=0.01` |
+| `pseudo-connex` | `numVertices=22`, `initialColors=2`, `weightPairs=0.01`, `weightColors=1.0`, `weightStd=0.000001`, `weightAvg=0.000000001` |
+
 ### Reproducible Example: OneMax (8 bits)
 
 This is the smallest complete example currently documented in the repository:
@@ -230,11 +266,6 @@ Windows fallback:
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/run-tests.ps1
 ```
-
-## Publication Roadmap
-
-The working plan for a serious journal submission is in
-[`PLAN_PUBLICACION_REVISTA.md`](PLAN_PUBLICACION_REVISTA.md).
 
 ## License
 
