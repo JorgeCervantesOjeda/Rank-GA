@@ -1,0 +1,878 @@
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{amsmath, amssymb}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{longtable}
+\usepackage{array}
+
+\geometry{margin=2.5cm}
+\setlist[itemize]{topsep=4pt,itemsep=3pt}
+\setlist[enumerate]{topsep=4pt,itemsep=3pt}
+
+\title{Explicaci\'on detallada de RankGA}
+\author{Documento t\'ecnico alineado con la implementaci\'on actual del repositorio}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Prop\'osito de este documento}
+
+Este documento explica con detalle el algoritmo implementado en el repositorio
+\texttt{RankGA}. No describe un algoritmo gen\'erico inventado aparte del
+c\'odigo, sino la versi\'on concreta que hoy existe en las clases
+\texttt{rankga.RankGA}, \texttt{rankga.Population},
+\texttt{rankga.Individual}, \texttt{rankga.Problem} y \texttt{rankga.Gene}.
+
+La meta es dejar claro:
+
+\begin{itemize}
+  \item qu\'e problema resuelve el framework;
+  \item cu\'al es la arquitectura conceptual del sistema;
+  \item c\'omo opera cada fase de la evoluci\'on;
+  \item qu\'e ecuaciones usa realmente la implementaci\'on;
+  \item qu\'e informaci\'on genera como salida;
+  \item y cu\'ales son sus supuestos, limitaciones y detalles que pueden
+  provocar mala interpretaci\'on si solo se mira el nombre de las clases.
+\end{itemize}
+
+Este texto es deliberadamente exhaustivo. La idea no es solo decir ``qu\'e
+hace'', sino dejar expl\'icito \emph{por qu\'e} est\'a organizado as\'i, qu\'e
+convenciones adopta y d\'onde conviene tener cuidado.
+
+\section{Idea general del algoritmo}
+
+RankGA es un algoritmo gen\'etico con cuatro rasgos estructurales centrales:
+
+\begin{enumerate}
+  \item \textbf{Selecci\'on por rango.}
+  La probabilidad esperada de supervivencia o replicaci\'on de un individuo no
+  depende directamente de su valor num\'erico de fitness, sino de su
+  \emph{posici\'on ordenada} dentro de la poblaci\'on.
+
+  \item \textbf{Mutaci\'on dependiente del rango.}
+  La intensidad de mutaci\'on no es uniforme en toda la poblaci\'on. Los
+  individuos mejor rankeados reciben menos perturbaci\'on y los peor rankeados
+  reciben m\'as.
+
+  \item \textbf{Emparejamiento por rango para recombinaci\'on.}
+  La recombinaci\'on no empareja individuos al azar. Despu\'es de ordenar la
+  poblaci\'on por fitness, el algoritmo empareja individuos contiguos en ese
+  orden. Por tanto, la estructura del rango no solo controla la selecci\'on y
+  la mutaci\'on, sino tambi\'en \emph{qui\'en se recombina con qui\'en}.
+
+  \item \textbf{Separaci\'on entre motor y problema.}
+  El motor evolutivo es gen\'erico y delega en el problema concreto la forma de
+  representar genes, construir individuos, evaluar fitness y definir el
+  significado de la intensidad de mutaci\'on.
+\end{enumerate}
+
+La orientaci\'on del framework es de \textbf{maximizaci\'on}. Un fitness mayor
+siempre es mejor. Toda la l\'ogica de ordenamiento y selecci\'on est\'a escrita
+con esa convenci\'on.
+
+\section{Arquitectura del sistema}
+
+\subsection{Componentes principales}
+
+El n\'ucleo del framework se reparte en estas abstracciones:
+
+\begin{longtable}{|p{3cm}|p{10cm}|}
+\hline
+\textbf{Componente} & \textbf{Responsabilidad principal} \\
+\hline
+\texttt{Problem} & Define el problema de optimizaci\'on: fitness, longitud de
+genoma, construcci\'on de genes e individuos, intensidad local, intensidad
+global y fitness objetivo. \\
+\hline
+\texttt{Gene} & Define la unidad at\'omica del genoma. Cada implementaci\'on
+decide c\'omo almacenar el valor, c\'omo mutarlo y c\'omo medir distancia a
+otro gen hom\'ologo. \\
+\hline
+\texttt{Individual} & Representa una soluci\'on completa: genoma, fitness,
+rango, intensidad de mutaci\'on recibida y operaciones de mutaci\'on y
+recombinaci\'on a nivel del individuo. \\
+\hline
+\texttt{Population} & Encapsula las operaciones poblacionales: evaluaci\'on,
+ordenamiento por fitness, selecci\'on, recombinaci\'on y mutaci\'on. \\
+\hline
+\texttt{RankGA} & Es el \emph{driver} de la corrida: inicializa, itera,
+registra salidas, decide el paro y genera res\'umenes y gr\'aficas. \\
+\hline
+\texttt{AdaptiveProblem} & Interfaz opcional para problemas cuyo estado interno
+puede adaptarse durante la corrida. \\
+\hline
+\texttt{ProblemFactory} & Selecci\'on expl\'icita del problema desde la l\'inea
+de comandos. \\
+\hline
+\end{longtable}
+
+\subsection{Separaci\'on entre motor y codificaci\'on}
+
+El framework no impone una sola codificaci\'on:
+
+\begin{itemize}
+  \item puede haber genes enteros categ\'oricos;
+  \item genes reales de precisi\'on doble;
+  \item y cualquier otra representaci\'on que respete la interfaz
+  \texttt{Gene}.
+\end{itemize}
+
+Esto tiene una consecuencia importante: la palabra \emph{mutaci\'on} no
+significa lo mismo en todas las implementaciones. El motor solo calcula una
+\textbf{intensidad} y la pasa a cada gen. El \texttt{Gene} concreto decide qu\'e
+hacer con esa intensidad.
+
+\section{Contrato formal entre problema y motor}
+
+\subsection{La interfaz \texttt{Problem}}
+
+Todo problema debe proveer:
+
+\begin{itemize}
+  \item \texttt{fitness(Individual)}: eval\'ua la calidad de una soluci\'on;
+  \item \texttt{getProblemName()}: nombre visible del problema;
+  \item \texttt{getGenomeLength()}: longitud del genoma;
+  \item \texttt{getNewGene(boolean, Random)}: construcci\'on de genes nuevos;
+  \item \texttt{getNewGene(Gene)}: copia o proyecci\'on de un gen existente;
+  \item \texttt{getGoalFt()}: fitness objetivo que, si se alcanza, detiene la
+  corrida;
+  \item \texttt{getDisplayModulus()}: agrupaci\'on visual del genoma en logs;
+  \item \texttt{getNewIndividual(boolean, Random)}: construcci\'on de
+  individuos nuevos;
+  \item \texttt{getNewIndividual(Individual)}: copia profunda de un individuo;
+  \item \texttt{getLocalSearchIntensity()} y
+  \texttt{getGlobalSearchIntensity()}.
+\end{itemize}
+
+\subsection{Interpretaci\'on de las intensidades \(L\) y \(G\)}
+
+El problema define dos par\'ametros:
+
+\begin{itemize}
+  \item \(L\): intensidad local;
+  \item \(G\): intensidad global.
+\end{itemize}
+
+En el framework actual:
+
+\begin{itemize}
+  \item \(G\) es la intensidad m\'axima asignable, t\'ipicamente asociada a los
+  peores rangos;
+  \item \(L\) se usa para calibrar la pendiente del perfil de mutaci\'on.
+\end{itemize}
+
+El supuesto matem\'atico deseado es \(G > L\), porque entonces el exponente de
+mutaci\'on resulta positivo y la mutaci\'on crece con el rango. En la
+implementaci\'on actual eso no se valida en tiempo de ejecuci\'on; simplemente
+se asume.
+
+\section{Representaci\'on de individuos y genes}
+
+\subsection{Estructura de un individuo}
+
+Cada individuo contiene:
+
+\begin{itemize}
+  \item un arreglo ordenado de genes;
+  \item un fitness cacheado;
+  \item un rango entero;
+  \item la \'ultima intensidad de mutaci\'on aplicada;
+  \item el rango de la pareja usada en la \'ultima recombinaci\'on;
+  \item un campo textual auxiliar para logging.
+\end{itemize}
+
+La copia de un individuo es \textbf{profunda} a nivel de genes: el constructor
+de copia llama, para cada locus, a \texttt{problem.getNewGene(gene)}.
+
+\subsection{Importancia del contrato de copia}
+
+Este detalle es m\'as importante de lo que parece. Si la copia de genes no se
+hace correctamente, la independencia estoc\'astica entre individuos puede
+romperse y la interpretaci\'on experimental del algoritmo deja de ser fiable.
+
+La lecci\'on metodol\'ogica es clara:
+
+\begin{itemize}
+  \item el operador de copia no es un detalle administrativo;
+  \item forma parte esencial de la sem\'antica del algoritmo;
+  \item una copia incorrecta puede falsear conclusiones experimentales.
+\end{itemize}
+
+\subsection{Dos ejemplos de genes del repositorio}
+
+\paragraph{GeneInteger.}
+Representa un gen discreto en
+\(\{0,1,\dots,\texttt{NUM\_VALUES}-1\}\). Su mutaci\'on interpreta la intensidad
+como probabilidad de reemplazo por otro valor distinto del actual. Es decir, en
+este caso la intensidad s\'i termina siendo usada como probabilidad, pero esa
+decisi\'on se toma a nivel del gen, no del motor.
+
+\paragraph{GeneDoublePrecision.}
+Representa un gen real. Su mutaci\'on aplica ruido gaussiano aditivo con
+desviaci\'on est\'andar igual a la intensidad recibida.
+
+\section{Ciclo evolutivo completo}
+
+\subsection{Esquema general}
+
+Para un problema dado, una semilla, un tama\~no de poblaci\'on \(N\) y un
+n\'umero de repeticiones \(R\), el ciclo externo es:
+
+\begin{enumerate}
+  \item crear una poblaci\'on inicial aleatoria;
+  \item evaluarla y ordenarla;
+  \item registrar un snapshot inicial;
+  \item repetir mientras no se alcance el fitness objetivo y no se haya agotado
+  la paciencia:
+  \begin{enumerate}
+    \item seleccionar;
+    \item recombinar;
+    \item reevaluar;
+    \item registrar mejora si hubo;
+    \item mutar;
+    \item reevaluar;
+    \item registrar mejora si hubo;
+    \item adaptar el problema si implementa \texttt{AdaptiveProblem}.
+  \end{enumerate}
+  \item registrar un snapshot final;
+  \item a\~nadir una fila al \texttt{summary.csv};
+  \item al final de todas las repeticiones, generar gr\'aficas autom\'aticamente.
+\end{enumerate}
+
+\subsection{Inicializaci\'on}
+
+La poblaci\'on inicial se crea con:
+
+\begin{itemize}
+  \item tama\~no fijo \(N\);
+  \item individuos aleatorizados;
+  \item un \texttt{Random} derivado de la semilla base de la corrida y del
+  \'indice de repetici\'on.
+\end{itemize}
+
+Despu\'es se eval\'ua a toda la poblaci\'on y se ordena de fitness mayor a
+menor. El n\'umero inicial de evaluaciones de fitness es exactamente \(N\).
+
+\section{Selecci\'on por rango}
+
+\subsection{Idea}
+
+La selecci\'on no usa directamente el valor crudo del fitness. En su lugar:
+
+\begin{enumerate}
+  \item la poblaci\'on ya est\'a ordenada de mejor a peor;
+  \item cada individuo recibe un rango impl\'icito por su posici\'on;
+  \item ese rango determina cu\'antos clones se espera producir.
+\end{enumerate}
+
+\subsection{Presi\'on selectiva fija}
+
+La implementaci\'on actual fija la presi\'on selectiva en
+\[
+S = 3.
+\]
+
+No es un par\'ametro configurable; es una decisi\'on de dise\~no del algoritmo.
+
+\subsection{Definici\'on del rango}
+
+En la selecci\'on, el c\'odigo usa
+\[
+r_i = \frac{i}{N-1},
+\]
+donde:
+
+\begin{itemize}
+  \item \(i=0\) corresponde al mejor individuo;
+  \item \(i=N-1\) corresponde al peor;
+  \item por lo tanto \(r_i \in [0,1]\).
+\end{itemize}
+
+En la implementaci\'on que este documento describe, la definici\'on correcta es
+\(r_i = i/(N-1)\).
+
+\subsection{Conteo esperado de clones}
+
+El n\'umero esperado de clones del individuo \(i\) es
+\[
+c_i = S(1-r_i)^{S-1}.
+\]
+
+Como \(S=3\), se vuelve
+\[
+c_i = 3(1-r_i)^2.
+\]
+
+\subsection{Materializaci\'on en el c\'odigo}
+
+La implementaci\'on hace dos pasos:
+
+\begin{enumerate}
+  \item asignaci\'on determinista:
+  \[
+  n_i = \lfloor c_i \rfloor;
+  \]
+  \item redondeo estoc\'astico sobre la parte fraccional hasta completar
+  exactamente \(N\) individuos.
+\end{enumerate}
+
+Es decir, si
+\[
+f_i = c_i - \lfloor c_i \rfloor,
+\]
+entonces se hacen pasadas c\'iclicas y se agrega un clon extra al individuo
+\(i\) con probabilidad \(f_i\), mientras el total de clones siga siendo menor
+que \(N\).
+
+\subsection{Observaciones t\'ecnicas}
+
+\begin{itemize}
+  \item La selecci\'on conserva exactamente el tama\~no de poblaci\'on.
+  \item El procedimiento usa redondeo estoc\'astico secuencial porque eso basta
+  para materializar la ley de clonaci\'on adoptada por el dise\~no.
+  \item El redondeo estoc\'astico introduce un peque\~no sesgo de orden por el
+  recorrido secuencial, pero actualmente ese sesgo se acepta como parte del
+  dise\~no.
+\end{itemize}
+
+\section{Emparejamiento por rango y recombinaci\'on}
+
+\subsection{Por qu\'e el emparejamiento por rango es central}
+
+En este framework, el rango no solo decide cu\'antos clones sobreviven y qu\'e
+intensidad de mutaci\'on recibe cada individuo. Tambi\'en decide la
+\textbf{vecindad reproductiva}.
+
+Eso significa que el rango organiza simult\'aneamente tres mecanismos:
+
+\begin{enumerate}
+  \item la presi\'on selectiva;
+  \item la intensidad de mutaci\'on;
+  \item y la estructura de apareamiento.
+\end{enumerate}
+
+Por eso el emparejamiento por rango debe considerarse una caracter\'istica
+central del algoritmo y no un detalle de implementaci\'on. Si el emparejamiento
+fuera aleatorio, la sem\'antica del m\'etodo cambiar\'ia de manera importante,
+porque se perder\'ia la relaci\'on sistem\'atica entre orden por fitness y
+mezcla gen\'etica.
+
+\subsection{Emparejamiento}
+
+La recombinaci\'on se hace en parejas adyacentes:
+\[
+(0,1), (2,3), (4,5), \dots
+\]
+
+No hay emparejamiento aleatorio global. El criterio es puramente posicional
+despu\'es del ordenamiento por fitness.
+
+\subsection{Operador}
+
+El operador de recombinaci\'on a nivel de individuo es cruzamiento uniforme con
+\textbf{intercambio in situ}. Este detalle es esencial:
+
+\begin{itemize}
+  \item la selecci\'on ya produjo una nueva poblaci\'on compuesta por clones;
+  \item la recombinaci\'on no construye objetos ``hijo'' adicionales;
+  \item en su lugar, toma dos clones ya existentes y les intercambia genes
+  locus por locus.
+\end{itemize}
+
+Por tanto, la secuencia correcta del algoritmo es:
+
+\begin{enumerate}
+  \item la selecci\'on multiplica genotipos mediante clonaci\'on;
+  \item la poblaci\'on clonada reemplaza a la anterior;
+  \item la recombinaci\'on act\'ua sobre esa poblaci\'on ya clonada;
+  \item cada pareja de clones se modifica directamente por intercambio de
+  loci.
+\end{enumerate}
+
+No hay una fase separada de ``generaci\'on de descendencia'' en el sentido
+cl\'asico de crear dos hijos nuevos a partir de dos padres intactos. Los
+``padres'' que entran a recombinaci\'on son exactamente los individuos clonados
+que sobreviven a la selecci\'on, y despu\'es del intercambio esos mismos
+objetos quedan convertidos en las soluciones recombinadas que siguen al resto
+del ciclo.
+
+En cada pareja, el mecanismo es:
+
+\begin{itemize}
+  \item para cada locus \(j\),
+  \item con probabilidad \(0.5\),
+  \item se intercambian los genes de ambos individuos en ese locus.
+\end{itemize}
+
+Formalmente, si \(x_j\) y \(y_j\) son los genes de dos padres, entonces:
+
+\[
+(x_j, y_j) \leftarrow
+\begin{cases}
+(y_j, x_j), & \text{con probabilidad } 0.5, \\
+(x_j, y_j), & \text{con probabilidad } 0.5.
+\end{cases}
+\]
+
+\subsection{Consecuencias}
+
+\begin{itemize}
+  \item Los individuos cercanos en rango tienden a recombinarse entre s\'i.
+  \item La mezcla gen\'etica est\'a sesgada por la estructura del ordenamiento.
+  \item La recombinaci\'on opera sobre clones seleccionados, no sobre una
+  poblaci\'on parental separada de una poblaci\'on filial.
+  \item El operador no aumenta el tama\~no de la poblaci\'on, porque no crea
+  individuos nuevos; solo transforma los ya existentes.
+  \item El operador es sim\'etrico.
+  \item No privilegia ni prefijos ni sufijos del genoma.
+  \item Conserva la distribuci\'on marginal de genes, aunque mezcla bloques de
+  construcci\'on a nivel de loci.
+\end{itemize}
+
+\section{Mutaci\'on por rango}
+
+\subsection{Idea central}
+
+La mutaci\'on no es plana. La intensi\'on del dise\~no es:
+
+\begin{itemize}
+  \item preservar m\'as a los individuos bien rankeados;
+  \item perturbar m\'as a los individuos peor rankeados;
+  \item hacer coexistir explotaci\'on cerca del frente y exploraci\'on en la
+  cola de la poblaci\'on.
+\end{itemize}
+
+\subsection{Exponente de mutaci\'on}
+
+El framework define
+\[
+\beta = \frac{\ln(G/L)}{\ln(N-1)}.
+\]
+
+Si \(G>L\), entonces \(\beta>0\).
+
+\subsection{Intensidad por individuo}
+
+Para el individuo de rango \(i\), la intensidad es
+\[
+I_i = G \, r_i^\beta,
+\]
+con
+\[
+r_i = \frac{i}{N-1}.
+\]
+
+De aqu\'i se sigue que:
+
+\begin{itemize}
+  \item para el mejor individuo, \(r_0=0\) y por tanto \(I_0=0\);
+  \item para el segundo mejor individuo, \(r_1=\frac{1}{N-1}\), y entonces
+  \[
+  I_1 = G \left(\frac{1}{N-1}\right)^\beta = L;
+  \]
+  \item para el peor individuo, \(r_{N-1}=1\) y por tanto
+  \(I_{N-1}=G\);
+  \item la intensidad crece mon\'otonamente con el rango si \(\beta>0\).
+\end{itemize}
+
+Ese detalle no es accidental. La forma en que se define \(\beta\) hace que el
+perfil de intensidades quede anclado exactamente en tres puntos:
+
+\[
+I_0 = 0,\qquad I_1 = L,\qquad I_{N-1} = G.
+\]
+
+Por tanto, \(L\) no representa la intensidad del mejor individuo, sino la del
+primer individuo no elitista, es decir, del segundo mejor elemento de la
+poblaci\'on ordenada.
+
+\subsection{Interpretaci\'on correcta}
+
+Aqu\'i conviene ser muy preciso. RankGA no define por s\'i mismo qu\'e significa
+\(I_i\). Solo define \emph{cu\'anto} recibe cada individuo en una escala
+abstracta. El significado operacional depende del gen:
+
+\begin{itemize}
+  \item el mejor individuo tiene intensidad exactamente \(0\);
+  \item el segundo mejor individuo tiene intensidad exactamente \(L\);
+  \item el peor individuo tiene intensidad exactamente \(G\).
+\end{itemize}
+
+Ese anclaje no es una interpretaci\'on opcional, sino una consecuencia directa
+de la forma en que el algoritmo define \(r_i\) y \(\beta\).
+
+\begin{itemize}
+  \item en genes reales, \(I_i\) puede ser desviaci\'on est\'andar del ruido;
+  \item en genes categ\'oricos, puede usarse como probabilidad de reemplazo;
+  \item en otras codificaciones podr\'ia representar radio de vecindad o
+  magnitud de perturbaci\'on.
+\end{itemize}
+
+Este desacoplamiento hace al framework flexible, pero tambi\'en obliga a que
+cada problema mantenga un contrato sem\'antico consistente.
+
+\section{Evaluaci\'on y detecci\'on de mejora}
+
+\subsection{Momento de evaluaci\'on}
+
+Dentro de una iteraci\'on del ciclo, el fitness se recalcula dos veces:
+
+\begin{enumerate}
+  \item despu\'es de recombinaci\'on;
+  \item despu\'es de mutaci\'on.
+\end{enumerate}
+
+La selecci\'on no eval\'ua porque trabaja con copias de individuos cuyo fitness
+ya hab\'ia sido conocido antes del clonaje.
+
+\subsection{Criterio de mejora}
+
+El framework actual ya no usa un \'unico criterio de ``mejora'' para todo.
+Hay que distinguir entre:
+
+\begin{itemize}
+  \item mejora estricta de fitness;
+  \item reemplazo del incumbente;
+  \item y reinicio de paciencia.
+\end{itemize}
+
+En todos los casos se exige adem\'as que el nuevo candidato no sea
+genot\'ipicamente id\'entico al incumbente previo. En c\'odigo, la distancia
+cuadr\'atica entre ambos debe ser positiva.
+
+\paragraph{Modo \texttt{strict}.}
+Si la pol\'itica de incumbente es \texttt{strict}, entonces el reemplazo del
+incumbente exige:
+
+\begin{itemize}
+  \item el fitness debe ser estrictamente mayor;
+  \item la distancia cuadr\'atica entre genomas debe ser positiva.
+\end{itemize}
+
+\paragraph{Modo \texttt{neutral}.}
+Si la pol\'itica de incumbente es \texttt{neutral}, entonces tambi\'en se
+permite sustituir al incumbente cuando:
+
+\begin{itemize}
+  \item el fitness es igual al del incumbente actual;
+  \item pero la distancia cuadr\'atica entre genomas sigue siendo positiva.
+\end{itemize}
+
+Es decir, en modo \texttt{neutral} s\'i se permite que el representante del
+mejor fitness alcanzado se desplace sobre una meseta neutral. Lo que no se
+permite en ning\'un caso es reemplazarlo por el mismo genotipo.
+
+\subsection{Distancia entre individuos}
+
+La distancia entre individuos se calcula como
+\[
+d^2(x,y) = \sum_{j=1}^{n} \left( d_j(x_j,y_j) \right)^2,
+\]
+donde \(d_j\) es la distancia definida por el gen en el locus \(j\).
+
+En genes enteros tipo Hamming unilocus, cada t\'ermino vale \(0\) o \(1\). En
+genes reales, depende de la implementaci\'on concreta del gen.
+
+\section{Adaptaci\'on opcional del problema}
+
+Si un problema implementa \texttt{AdaptiveProblem}, entonces el driver llama:
+\[
+\texttt{adapt(bestFitness)}
+\]
+despu\'es de completar la iteraci\'on evolutiva.
+
+Esto permite que el problema:
+
+\begin{itemize}
+  \item ajuste pesos internos;
+  \item cambie par\'ametros de representaci\'on;
+  \item modifique penalizaciones;
+  \item o altere alguna heur\'istica dependiente del progreso.
+\end{itemize}
+
+Si el problema no implementa esa interfaz, no ocurre nada. La adaptaci\'on no
+forma parte del contrato b\'asico de \texttt{Problem}.
+
+\section{Criterios de paro}
+
+\subsection{Paro por objetivo}
+
+La corrida termina si el mejor fitness actual satisface
+\[
+f_{\max} \geq f_{\text{goal}},
+\]
+donde \(f_{\text{goal}} = \texttt{problem.getGoalFt()}\).
+
+\subsection{Paro por paciencia}
+
+Tambi\'en termina si transcurre un tiempo fijo sin el tipo de progreso que la
+pol\'itica de paciencia considere suficiente.
+
+La versi\'on actual permite parametrizar dos cosas distintas:
+
+\begin{itemize}
+  \item el criterio de reemplazo del incumbente;
+  \item y el criterio de reinicio de paciencia.
+\end{itemize}
+
+La paciencia se configura con un par\'ametro en milisegundos:
+\[
+\texttt{patienceMillis}.
+\]
+
+Por defecto:
+\[
+\texttt{patienceMillis} = 60\,000 \text{ ms} = 1 \text{ minuto}.
+\]
+
+\subsection{Pol\'itica de incumbente}
+
+El framework distingue dos modos:
+
+\begin{itemize}
+  \item \texttt{strict}: el incumbente solo se sustituye si aparece un
+  individuo con fitness estrictamente mayor;
+  \item \texttt{neutral}: el incumbente tambi\'en puede sustituirse por otro
+  genotipo con el mismo fitness, siempre que la distancia genot\'ipica sea
+  positiva.
+\end{itemize}
+
+Esto controla si el representante del mejor fitness alcanzado puede o no
+desplazarse sobre una meseta neutral.
+
+\subsection{Pol\'itica de reinicio de paciencia}
+
+El reinicio de paciencia tambi\'en es configurable:
+
+\begin{itemize}
+  \item \texttt{fitness}: la paciencia se reinicia solo con mejora estricta de
+  fitness;
+  \item \texttt{movement}: la paciencia se reinicia cuando cambia el
+  incumbente seg\'un la pol\'itica de incumbente seleccionada.
+\end{itemize}
+
+La distinci\'on es importante. Permitir movimiento neutral del incumbente no
+obliga a interpretar ese movimiento como progreso suficiente para seguir
+extendiendo la corrida. Son dos decisiones metodol\'ogicas distintas.
+
+\subsection{Consecuencia importante}
+
+La paciencia es \textbf{por repetici\'on}, no por experimento completo. Si se
+ejecutan \(100\) repeticiones y ninguna alcanza el objetivo, el tiempo total
+puede escalar aproximadamente a \(100\) minutos, salvo peque\~nas variaciones
+por inicializaci\'on, I/O y sistema operativo.
+
+\section{Contabilidad de evaluaciones}
+
+\subsection{Qu\'e se cuenta}
+
+La variable \texttt{evaluations} cuenta cu\'antas veces se evalu\'o fitness en
+una repetici\'on.
+
+Se suma:
+
+\begin{itemize}
+  \item \(N\) al inicializar;
+  \item \(N\) despu\'es de recombinaci\'on en cada generaci\'on;
+  \item \(N\) despu\'es de mutaci\'on en cada generaci\'on.
+\end{itemize}
+
+\subsection{Correcci\'on importante ya incorporada}
+
+La versi\'on actual ya no fuerza una generaci\'on extra si la poblaci\'on
+inicial alcanza el objetivo. El ciclo principal usa un \texttt{while} y no un
+\texttt{do-while}. Eso evita sobrecontar evaluaciones en casos donde la
+soluci\'on objetivo ya aparece desde el principio.
+
+\section{Salida experimental}
+
+\subsection{Logs heredados}
+
+Por cada corrida se generan:
+
+\begin{itemize}
+  \item un archivo \texttt{.txt} con snapshots cronol\'ogicos del mejor
+  individuo;
+  \item un archivo \texttt{\_rep.txt} por repetici\'on con el \'ultimo estado de
+  la poblaci\'on en esa repetici\'on.
+\end{itemize}
+
+\subsection{Resumen estructurado}
+
+Tambi\'en se genera un \texttt{summary.csv} con una fila por repetici\'on. Entre
+sus columnas est\'an:
+
+\begin{itemize}
+  \item algoritmo;
+  \item clase del problema;
+  \item nombre del problema;
+  \item par\'ametros efectivos del problema;
+  \item semilla;
+  \item \texttt{run\_id};
+  \item \'indice de repetici\'on;
+  \item tama\~no de poblaci\'on;
+  \item n\'umero total de repeticiones;
+  \item n\'umero de evaluaciones;
+  \item mejor fitness final;
+  \item tiempo transcurrido en milisegundos;
+  \item raz\'on de terminaci\'on;
+  \item fitness objetivo;
+  \item paciencia configurada en milisegundos;
+  \item pol\'itica de reemplazo del incumbente;
+  \item pol\'itica de reinicio de paciencia;
+  \item prefijo del archivo de salida.
+\end{itemize}
+
+\subsection{Gr\'aficas autom\'aticas}
+
+Al terminar todas las repeticiones, RankGA invoca un script en Python que
+genera:
+
+\begin{itemize}
+  \item una gr\'afica ordenada por evaluaciones;
+  \item una gr\'afica ordenada por tiempo transcurrido;
+  \item y dos CSV ordenados correspondientes.
+\end{itemize}
+
+La versi\'on actual ya incorpora el \texttt{runId} en el nombre de la figura
+para evitar colisiones entre corridas con el mismo problema y la misma semilla.
+
+\section{Ejemplo: OneMax de 8 bits}
+
+\subsection{Definici\'on}
+
+En el problema OneMax de longitud \(n=8\):
+
+\begin{itemize}
+  \item el genoma es binario;
+  \item el fitness es la suma de bits en uno;
+  \item el objetivo es alcanzar fitness \(8\).
+\end{itemize}
+
+Formalmente, si \(x \in \{0,1\}^8\), entonces
+\[
+f(x) = \sum_{j=1}^{8} x_j.
+\]
+
+\subsection{Configuraci\'on en el repositorio}
+
+La implementaci\'on actual:
+
+\begin{itemize}
+  \item usa \texttt{GeneInteger} con dominio binario;
+  \item define intensidad local \(L = 1/8\);
+  \item define intensidad global \(G = 0.5\);
+  \item usa una estrategia de copia de genes que preserva la independencia
+  estoc\'astica entre individuos.
+\end{itemize}
+
+\subsection{Interpretaci\'on experimental}
+
+OneMax es un benchmark deliberadamente sencillo. Si este problema falla con
+frecuencia por paciencia, eso suele indicar:
+
+\begin{itemize}
+  \item un defecto en la implementaci\'on;
+  \item una sem\'antica inconsistente de mutaci\'on;
+  \item o un error en el dise\~no experimental y no una limitaci\'on genuina
+  del algoritmo.
+\end{itemize}
+
+\section{Supuestos y limitaciones del framework}
+
+\subsection{Supuestos fuertes}
+
+El algoritmo presupone:
+
+\begin{itemize}
+  \item fitness orientado a maximizaci\'on;
+  \item poblaciones de tama\~no al menos \(3\);
+  \item \(G > L\) para que la mutaci\'on dependa del rango de forma mon\'otona;
+  \item una implementaci\'on consistente del operador de copia de genes;
+  \item y una interpretaci\'on bien definida de intensidad dentro de cada tipo
+  de gen.
+\end{itemize}
+
+\subsection{Decisiones de dise\~no}
+
+\begin{itemize}
+  \item La presi\'on selectiva \(S\) es fija.
+  \item El emparejamiento para recombinaci\'on es adyacente y no aleatorio.
+  \item La selecci\'on usa redondeo estoc\'astico secuencial y no necesita
+  muestreo multinomial exacto para cumplir su objetivo.
+\end{itemize}
+
+\subsection{Limitaciones reales de implementaci\'on}
+
+\begin{itemize}
+  \item El motor usa estado est\'atico en \texttt{RankGA}, por lo que est\'a
+  dise\~nado como \emph{runner} simple, no como motor concurrente para varias
+  corridas simult\'aneas en la misma JVM.
+  \item La generaci\'on autom\'atica de gr\'aficas depende de componentes
+  externos disponibles en el entorno.
+\end{itemize}
+
+\subsection{Criterio documental}
+
+Para entender el comportamiento real del framework, hay que preferir:
+
+\begin{enumerate}
+  \item el c\'odigo ejecutable;
+  \item la ejecuci\'on efectiva de los tests autom\'aticos del proyecto, cuando
+  son aplicables al cambio o a la afirmaci\'on que se quiere sostener;
+  \item las corridas reproducibles y sus res\'umenes experimentales
+  estructurados;
+  \item y la revisi\'on manual de archivos de salida cuando hace falta una
+  validaci\'on complementaria.
+\end{enumerate}
+
+\subsection{Observaci\'on pr\'actica sobre verificaci\'on}
+
+En este repositorio conviene distinguir entre:
+
+\begin{itemize}
+  \item compilaci\'on correcta del c\'odigo;
+  \item ejecuci\'on efectiva de pruebas autom\'aticas;
+  \item y validaci\'on manual mediante corridas, inspecci\'on de logs,
+  \texttt{summary.csv} y gr\'aficas.
+\end{itemize}
+
+Desde el punto de vista metodol\'ogico, esa distinci\'on importa porque una
+afirmaci\'on del tipo ``esto ya est\'a probado'' no significa lo mismo si se
+basa en una bater\'ia automatizada completa, en una corrida reproducible o en
+una inspecci\'on manual del \emph{summary}. En una descripci\'on rigurosa del
+framework, esas fuentes de evidencia no deben confundirse ni presentarse como
+si tuvieran exactamente el mismo alcance.
+
+\section{Resumen conceptual final}
+
+RankGA puede resumirse como sigue:
+
+\begin{enumerate}
+  \item ordena la poblaci\'on por fitness;
+  \item replica individuos seg\'un su rango, no seg\'un el valor crudo del
+  fitness;
+  \item cruza por parejas adyacentes;
+  \item muta con intensidad creciente conforme empeora el rango;
+  \item preserva al mejor individuo porque su intensidad es cero;
+  \item asigna al segundo mejor individuo exactamente la intensidad local
+  \(L\);
+  \item permite adaptaci\'on opcional del problema;
+  \item y produce salidas estructuradas para an\'alisis experimental.
+\end{enumerate}
+
+La contribuci\'on pr\'actica del framework no es solo combinar selecci\'on por
+rango con mutaci\'on dependiente del rango, sino hacerlo de manera gen\'erica
+para varias codificaciones y problemas. El precio de esa generalidad es que el
+contrato entre motor y genes debe estar especialmente bien cuidado. Cuando ese
+contrato se respeta, el comportamiento es razonable y reproducible; cuando se
+viola, incluso problemas muy f\'aciles pueden dar resultados enga\~nosos.
+
+\end{document}

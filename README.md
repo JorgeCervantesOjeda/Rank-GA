@@ -32,6 +32,16 @@ ant clean test
 If you use NetBeans, the standard Clean, Build, and Test actions work with the
 included Ant project files.
 
+The repository also includes a self-contained PowerShell runner that uses the
+bundled JUnit jar and is useful as a Windows fallback:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run-tests.ps1
+```
+
+That script compiles `src/` and `test/` and runs the full JUnit suite using
+the bundled `lib/junit-4.7.jar`.
+
 ## Run
 
 The main entry point is `rankga.RankGA`.
@@ -43,6 +53,7 @@ ant run -Dapplication.args="--help"
 ant run -Dapplication.args="--problem=one-max --genome-length=8 --population=20 --repetitions=100 --seed=1234"
 ant run -Dapplication.args="--problem=heawood --colors=3"
 ant run -Dapplication.args="--problem=ts-reals --population=20 --repetitions=10"
+ant run -Dapplication.args="--problem=one-max --genome-length=8 --population=20 --repetitions=100 --seed=1234 --patience-ms=60000 --incumbent-update=neutral --patience-reset=movement"
 ```
 
 If you prefer to run it directly after compilation, use the generated classes
@@ -52,6 +63,18 @@ Each run writes the legacy `.txt` traces under `runs/<family>/` and also a
 structured `*_summary.csv` file with seed, repetition, evaluations, best
 fitness, elapsed time, termination reason, and a `problem_parameters` column
 with the effective problem-specific settings used in that run.
+
+The launcher also accepts:
+
+- `--patience-ms=<milliseconds>`
+- `--incumbent-update=strict|neutral`
+- `--patience-reset=fitness|movement`
+
+`strict` keeps the incumbent fixed unless fitness improves strictly. `neutral`
+allows the incumbent to move to a different genotype with the same fitness.
+`fitness` resets patience only on strict fitness improvement. `movement`
+resets patience whenever the incumbent changes according to the selected
+incumbent policy.
 
 ### Reproducible Example: OneMax (8 bits)
 
@@ -86,6 +109,9 @@ The summary contains one row per repetition with these key fields:
 - `goal_fitness`
 - `elapsed_ms`
 - `termination_reason`
+- `patience_ms`
+- `incumbent_update_policy`
+- `patience_reset_policy`
 - `problem_parameters`
 
 For the documented OneMax example, `problem_parameters` is
@@ -128,6 +154,18 @@ The current test set covers:
 - `GeneInteger` domain and mutation behavior.
 - `Population` selection behavior.
 - `RankGA` dispatch of `adapt()` for adaptive problems.
+
+Primary test command:
+
+```bash
+ant test
+```
+
+Windows fallback:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run-tests.ps1
+```
 
 ## Publication Roadmap
 

@@ -37,8 +37,9 @@ import static rankga.ConvertTime.convertMillisToTimeFormat;
  * <li><b>Adaptation</b>: if the problem implements
  * {@link AdaptiveProblem}, allow it to adjust its internal parameters based on
  * the current best fitness.</li>
- * <li><b>Termination</b>: stop when (a) no improvement has occurred for a given
- * patience window, or (b) the problem’s goal fitness is reached.</li>
+ * <li><b>Termination</b>: stop when (a) the configured patience policy has not
+ * accepted progress within the patience window, or (b) the problem’s goal
+ * fitness is reached.</li>
  * </ol>
  *
  * <h2>Logging</h2>
@@ -56,8 +57,8 @@ import static rankga.ConvertTime.convertMillisToTimeFormat;
  * <li>Fitness is maximized (higher is better).</li>
  * <li>{@link Population#evaluate()} must be called after operators to maintain
  * sorting.</li>
- * <li>Patience counts wall-clock time without improvement of the <em>best</em>
- * individual (and with a non-zero genotype distance).</li>
+ * <li>Patience is measured in wall-clock time and its reset semantics are
+ * configurable: by strict fitness improvement or by incumbent movement.</li>
  * <li>The default launch problem is selected via {@code --problem}; if absent,
  * {@code ts-reals} is used.</li>
  * </ul>
@@ -69,11 +70,53 @@ public class RankGA {
   /**
    * Max wall-clock time without improvement before stopping (milliseconds).
    */
-  private static final long PATIENCE = 1 * 60L * 1000L;
+  static final long DEFAULT_PATIENCE_MILLIS = 1 * 60L * 1000L;
   private static final String SNAPSHOT_HEADER =
     "t\tni\trep\tg\ts\tph\td\trank\tp\tfitness\textra\tgenes\tDateTime\tmil";
   private static final String POPULATION_HEADER =
     "rank\tmutationIntensity\tfitness\textra\tgenes";
+
+  public enum IncumbentUpdatePolicy {
+    STRICT,
+    NEUTRAL;
+
+    static IncumbentUpdatePolicy fromOption( String option ) {
+      if( option == null ) {
+        return STRICT;
+      }
+      switch( option.trim().toLowerCase( Locale.ROOT ) ) {
+        case "strict":
+          return STRICT;
+        case "neutral":
+          return NEUTRAL;
+        default:
+          throw new IllegalArgumentException(
+            "Unknown incumbent update policy '" + option
+            + "'. Allowed: strict, neutral" );
+      }
+    }
+  }
+
+  public enum PatienceResetPolicy {
+    FITNESS,
+    MOVEMENT;
+
+    static PatienceResetPolicy fromOption( String option ) {
+      if( option == null ) {
+        return FITNESS;
+      }
+      switch( option.trim().toLowerCase( Locale.ROOT ) ) {
+        case "fitness":
+          return FITNESS;
+        case "movement":
+          return MOVEMENT;
+        default:
+          throw new IllegalArgumentException(
+            "Unknown patience reset policy '" + option
+            + "'. Allowed: fitness, movement" );
+      }
+    }
+  }
 
   // --- GA state (static for a simple single-run driver) ---------------------------------------
   /**
@@ -106,6 +149,11 @@ public class RankGA {
    * Generation counter (increments after each operator phase).
    */
   static protected long generation;
+  static protected long patienceMillis = DEFAULT_PATIENCE_MILLIS;
+  static protected IncumbentUpdatePolicy incumbentUpdatePolicy =
+    IncumbentUpdatePolicy.STRICT;
+  static protected PatienceResetPolicy patienceResetPolicy =
+    PatienceResetPolicy.FITNESS;
 
   // --------------------------------------------------------------------------------------------
   // Entry point
@@ -130,6 +178,14 @@ public class RankGA {
     int repetitions = ProblemFactory.readIntOption( options,
                                                     "repetitions",
                                                     10 );
+    long selectedPatienceMillis = ProblemFactory.readLongOption(
+      options,
+      "patiencems",
+      DEFAULT_PATIENCE_MILLIS );
+    IncumbentUpdatePolicy selectedIncumbentUpdatePolicy =
+      IncumbentUpdatePolicy.fromOption( options.get( "incumbentupdate" ) );
+    PatienceResetPolicy selectedPatienceResetPolicy =
+      PatienceResetPolicy.fromOption( options.get( "patiencereset" ) );
 
     Problem problem = ProblemFactory.create( problemId,
                                              options,
@@ -142,7 +198,10 @@ public class RankGA {
          populationSize,
          repetitions,
          seed,
-         problemParameters );
+         problemParameters,
+         selectedPatienceMillis,
+         selectedIncumbentUpdatePolicy,
+         selectedPatienceResetPolicy );
     }
 
   /**
@@ -161,7 +220,10 @@ public class RankGA {
          populationSize,
          repetitions,
          seed,
-         "" );
+         "",
+         DEFAULT_PATIENCE_MILLIS,
+         IncumbentUpdatePolicy.STRICT,
+         PatienceResetPolicy.FITNESS );
   }
 
   /**
@@ -179,6 +241,47 @@ public class RankGA {
                           int repetitions,
                           long seed,
                           String problemParameters ) {
+    run( problem,
+         populationSize,
+         repetitions,
+         seed,
+         problemParameters,
+         DEFAULT_PATIENCE_MILLIS,
+         IncumbentUpdatePolicy.STRICT,
+         PatienceResetPolicy.FITNESS );
+  }
+
+  /**
+   * Execute a full Rank-GA run with explicit incumbency and patience policies.
+   *
+   * @param problem owning problem
+   * @param populationSize population size N
+   * @param repetitions number of full runs
+   * @param seed base seed for the run
+   * @param problemParameters semicolon-separated description of the effective
+   *                          problem parameters used for this run
+   * @param patienceMillis max wall-clock time without accepted progress
+   * @param selectedIncumbentUpdatePolicy policy that decides whether neutral
+   *                                      moves can replace the incumbent
+   * @param selectedPatienceResetPolicy policy that decides what resets
+   *                                    patience
+   */
+  public static void run( Problem problem,
+                          int populationSize,
+                          int repetitions,
+                          long seed,
+                          String problemParameters,
+                          long patienceMillis,
+                          IncumbentUpdatePolicy selectedIncumbentUpdatePolicy,
+                          PatienceResetPolicy selectedPatienceResetPolicy ) {
+    if( patienceMillis <= 0L ) {
+      throw new IllegalArgumentException(
+        "patienceMillis must be positive" );
+    }
+    RankGA.patienceMillis = patienceMillis;
+    RankGA.incumbentUpdatePolicy = selectedIncumbentUpdatePolicy;
+    RankGA.patienceResetPolicy = selectedPatienceResetPolicy;
+
     // Unique name for logs (problem name + seed + timestamp).
     long runId = System.currentTimeMillis();
     String problemName = problem.getProblemName();
@@ -190,11 +293,17 @@ public class RankGA {
       problemName + "_seed" + seed + "_" + runId
       + "_summary.csv" );
 
-    System.out.println( "Patience: " + convertMillisToTimeFormat( PATIENCE ) );
+    System.out.println( "Patience: " + convertMillisToTimeFormat( patienceMillis ) );
     System.out.println( "Seed: " + seed );
     System.out.println( "Problem: " + problemRunName );
     System.out.println( "Population: " + populationSize );
     System.out.println( "Repetitions: " + repetitions );
+    System.out.println( "Incumbent update policy: "
+                        + selectedIncumbentUpdatePolicy.name().toLowerCase(
+                          Locale.ROOT ) );
+    System.out.println( "Patience reset policy: "
+                        + selectedPatienceResetPolicy.name().toLowerCase(
+                          Locale.ROOT ) );
 
     // Outer loop: repeat full runs to assess robustness / variance.
     for( repetition = 0; repetition < repetitions; repetition++ ) {
@@ -222,7 +331,7 @@ public class RankGA {
       // If the initial population already reaches the goal, stop without forcing
       // an extra generation. The summary should then report only the initial N
       // evaluations.
-      while( ( now.getTime() - notImproved.getTime() ) < PATIENCE
+      while( ( now.getTime() - notImproved.getTime() ) < patienceMillis
              && population.getFittest().getFitness() < problem.getGoalFt() ) {
         evaluations += evolvePopulation( problemRunName,
                                          problem );
@@ -260,6 +369,9 @@ public class RankGA {
                                now.getTime() - startTime.getTime(),
                                terminationReason,
                                problem.getGoalFt(),
+                               patienceMillis,
+                               selectedIncumbentUpdatePolicy,
+                               selectedPatienceResetPolicy,
                                problemRunName );
     }
 
@@ -375,6 +487,9 @@ public class RankGA {
                                                long elapsedMillis,
                                                String terminationReason,
                                                double goalFitness,
+                                               long patienceMillis,
+                                               IncumbentUpdatePolicy incumbentUpdatePolicy,
+                                               PatienceResetPolicy patienceResetPolicy,
                                                String problemRunName ) {
     boolean writeHeader = !Files.exists( summaryFile );
     try( PrintWriter out = new PrintWriter(
@@ -382,7 +497,7 @@ public class RankGA {
                                                          true ) ) ) ) {
       if( writeHeader ) {
         out.println(
-          "algorithm,problem_class,problem_name,problem_parameters,seed,run_id,repetition,population_size,repetitions,evaluations,best_fitness,elapsed_ms,termination_reason,goal_fitness,output_prefix" );
+          "algorithm,problem_class,problem_name,problem_parameters,seed,run_id,repetition,population_size,repetitions,evaluations,best_fitness,elapsed_ms,termination_reason,goal_fitness,patience_ms,incumbent_update_policy,patience_reset_policy,output_prefix" );
       }
       out.println(
           String.join(
@@ -405,6 +520,9 @@ public class RankGA {
           String.format( Locale.ROOT,
                          "%.17g",
                          goalFitness ),
+          Long.toString( patienceMillis ),
+          csvField( incumbentUpdatePolicy.name().toLowerCase( Locale.ROOT ) ),
+          csvField( patienceResetPolicy.name().toLowerCase( Locale.ROOT ) ),
           csvField( problemRunName ) ) );
     } catch( IOException e ) {
       System.out.println( e );
@@ -466,9 +584,9 @@ public class RankGA {
   // Improvement detection & snapshot logging
   // --------------------------------------------------------------------------------------------
   /**
-   * If the current best strictly improves the last-best fitness and is not a
-   * duplicate genome (distance > 0), emit a snapshot log and refresh the “last
-   * best” copy and timers.
+   * Evaluate the current best against the incumbent according to the configured
+   * policies. Incumbent replacement and patience reset are intentionally
+   * decoupled.
    *
    * @param phase          phase tag (“R” after recombination, “M” after
    *                       mutation, etc.)
@@ -478,16 +596,63 @@ public class RankGA {
   private static void checkImprovement( String phase,
                                         String problemRunName,
                                         Problem problem ) {
-    if( lastBest.getFitness() < population.getFittest().getFitness()
-        && lastBest.distanceSqTo( population.getFittest() ) > 0.0 ) {
+    Individual candidate = population.getFittest();
+    boolean improvedFitness = hasStrictFitnessImprovement( lastBest,
+                                                           candidate );
+    boolean movedIncumbent = shouldReplaceIncumbent( lastBest,
+                                                     candidate,
+                                                     incumbentUpdatePolicy );
 
+    if( movedIncumbent ) {
       report( phase,
               problemRunName );                            // print and persist a snapshot
-      lastBest = problem.getNewIndividual( population.getFittest() ); // deep copy new best
-      notImproved = new Date();                                   // reset patience timer
-      lastDisplay = new Date();                                   // reset progress display timer
+      lastBest = problem.getNewIndividual( candidate ); // deep copy new incumbent
+      if( shouldResetPatience( improvedFitness,
+                               movedIncumbent,
+                               patienceResetPolicy ) ) {
+        notImproved = new Date();
+      }
+      lastDisplay = new Date();
     }
     generation++; // increment generation counter after each operator phase
+  }
+
+  static boolean hasStrictFitnessImprovement( Individual incumbent,
+                                              Individual candidate ) {
+    return incumbent.distanceSqTo( candidate ) > 0.0
+           && candidate.getFitness() > incumbent.getFitness();
+  }
+
+  static boolean shouldReplaceIncumbent(
+    Individual incumbent,
+    Individual candidate,
+    IncumbentUpdatePolicy policy ) {
+    if( incumbent.distanceSqTo( candidate ) <= 0.0 ) {
+      return false;
+    }
+    switch( policy ) {
+      case STRICT:
+        return candidate.getFitness() > incumbent.getFitness();
+      case NEUTRAL:
+        return candidate.getFitness() >= incumbent.getFitness();
+      default:
+        throw new IllegalStateException( "Unsupported incumbent policy: "
+                                         + policy );
+    }
+  }
+
+  static boolean shouldResetPatience( boolean improvedFitness,
+                                      boolean movedIncumbent,
+                                      PatienceResetPolicy policy ) {
+    switch( policy ) {
+      case FITNESS:
+        return improvedFitness;
+      case MOVEMENT:
+        return movedIncumbent;
+      default:
+        throw new IllegalStateException( "Unsupported patience policy: "
+                                         + policy );
+    }
   }
 
   // --------------------------------------------------------------------------------------------
@@ -496,13 +661,15 @@ public class RankGA {
   /**
    * Periodically prints a terse progress line to stdout (no file I/O).
    * <ul>
-   * <li>Every PATIENCE/10 milliseconds, shows elapsed, generations, and speed
+   * <li>Every patienceMillis/10 milliseconds, shows elapsed, generations, and speed
    * (gen/ms).</li>
    * <li>Useful for monitoring without overwhelming the console.</li>
    * </ul>
    */
   private static void displayProgress() {
-    if( ( now.getTime() - lastDisplay.getTime() ) > PATIENCE / 10 ) {
+    long progressInterval = Math.max( 1L,
+                                      patienceMillis / 10L );
+    if( ( now.getTime() - lastDisplay.getTime() ) > progressInterval ) {
       lastDisplay = new Date();
       runTime.setTime( now.getTime() - startTime.getTime() );     // total elapsed
       tryTime.setTime( now.getTime() - notImproved.getTime() );   // time since last improvement
@@ -615,7 +782,7 @@ public class RankGA {
    */
   private static void printUsage() {
     System.out.println(
-      "Usage: java rankga.RankGA [--problem=name] [--population=N] [--repetitions=R] [--seed=S] [--param=value...]" );
+      "Usage: java rankga.RankGA [--problem=name] [--population=N] [--repetitions=R] [--seed=S] [--patience-ms=T] [--incumbent-update=strict|neutral] [--patience-reset=fitness|movement] [--param=value...]" );
     System.out.println( "Problems: " + ProblemFactory.availableProblems() );
     System.out.println( "Examples:" );
     System.out.println( "  java rankga.RankGA" );

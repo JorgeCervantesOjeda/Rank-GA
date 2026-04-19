@@ -68,7 +68,10 @@ public class RankGAAdaptiveTest {
                                   3,
                                   1,
                                   1234L,
-                                  "mode=adaptive;goal=1.0" ) );
+                                  "mode=adaptive;goal=1.0",
+                                  60000L,
+                                  RankGA.IncumbentUpdatePolicy.STRICT,
+                                  RankGA.PatienceResetPolicy.FITNESS ) );
 
     Path summaryFile = findSummaryFile( ADAPTIVE_PREFIX,
                                         1234L );
@@ -78,12 +81,15 @@ public class RankGAAdaptiveTest {
     assertEquals( 2,
                   lines.size() );
     assertTrue( lines.get( 0 ).contains(
-      "algorithm,problem_class,problem_name,problem_parameters,seed,run_id,repetition,population_size,repetitions,evaluations,best_fitness,elapsed_ms,termination_reason,goal_fitness,output_prefix" ) );
+      "algorithm,problem_class,problem_name,problem_parameters,seed,run_id,repetition,population_size,repetitions,evaluations,best_fitness,elapsed_ms,termination_reason,goal_fitness,patience_ms,incumbent_update_policy,patience_reset_policy,output_prefix" ) );
     assertTrue( lines.get( 1 ).contains( "\"RankGA\"" ) );
     assertTrue( lines.get( 1 ).contains( "\"adaptive_stub_problem\"" ) );
     assertTrue( lines.get( 1 ).contains( "\"mode=adaptive;goal=1.0\"" ) );
     assertTrue( lines.get( 1 ).contains( ",1234," ) );
     assertTrue( lines.get( 1 ).contains( "\"goal\"" ) );
+    assertTrue( lines.get( 1 ).contains( ",60000," ) );
+    assertTrue( lines.get( 1 ).contains( "\"strict\"" ) );
+    assertTrue( lines.get( 1 ).contains( "\"fitness\"" ) );
     assertEquals( "3",
                   splitCsvLine( lines.get( 1 ) ).get( 9 ) );
   }
@@ -99,7 +105,10 @@ public class RankGAAdaptiveTest {
                                   3,
                                   1,
                                   1234L,
-                                  "mode=adaptive;goal=1.0" ) );
+                                  "mode=adaptive;goal=1.0",
+                                  60000L,
+                                  RankGA.IncumbentUpdatePolicy.STRICT,
+                                  RankGA.PatienceResetPolicy.FITNESS ) );
 
     Path summaryFile = findSummaryFile( ADAPTIVE_PREFIX,
                                         1234L );

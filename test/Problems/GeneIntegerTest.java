@@ -36,9 +36,7 @@ public class GeneIntegerTest {
 
     gene.mutate( 1.0 );
 
-    assertNotEquals( 0.0,
-                     gene.getValue(),
-                     0.0 );
+    assertTrue( gene.getValue() != 0.0 );
     assertTrue( gene.getValue() >= 0.0 );
     assertTrue( gene.getValue() < 3.0 );
   }

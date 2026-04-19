@@ -23,7 +23,10 @@ public class ProblemFactoryTest {
       new String[] { "--problem=heawood",
                      "--colors=3",
                      "--population=17",
-                     "--seed=1234" } );
+                     "--seed=1234",
+                     "--patience-ms=90000",
+                     "--incumbent-update=neutral",
+                     "--patience-reset=movement" } );
 
     assertEquals( "heawood",
                   options.get( "problem" ) );
@@ -33,6 +36,12 @@ public class ProblemFactoryTest {
                   options.get( "population" ) );
     assertEquals( "1234",
                   options.get( "seed" ) );
+    assertEquals( "90000",
+                  options.get( "patiencems" ) );
+    assertEquals( "neutral",
+                  options.get( "incumbentupdate" ) );
+    assertEquals( "movement",
+                  options.get( "patiencereset" ) );
   }
 
   @Test

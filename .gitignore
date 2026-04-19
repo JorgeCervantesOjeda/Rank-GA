@@ -20,6 +20,9 @@ build/
 *.rar
 *.tar
 *.zip
+!lib/
+!lib/junit-4.7.jar
+!lib/README.md
 
 # Logs and databases #
 ######################

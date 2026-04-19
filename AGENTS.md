@@ -16,6 +16,33 @@ La prioridad no es producir mucho contenido, sino producir contenido de altísim
 
 ---
 
+## Uso obligatorio de skill
+
+En este repositorio, el agente debe usar siempre y sin excepción el skill global `scientific-rigor`.
+
+Responder o trabajar sin usar `scientific-rigor` constituye un incumplimiento de las instrucciones de este repositorio.
+
+---
+
+## Verificación y pruebas
+
+En este repositorio, el agente debe usar las pruebas automáticas disponibles del proyecto como mecanismo principal de verificación cuando apliquen.
+
+Por tanto:
+
+- debe ejecutar las pruebas automáticas del repositorio cuando sean relevantes para el cambio realizado;
+- debe hacer verificación manual complementaria cuando sea necesario;
+- debe explicar explícitamente qué verificó manualmente;
+- y debe distinguir con claridad entre:
+  - código no compilado,
+  - compilación correcta,
+  - prueba automática ejecutada,
+  - y validación manual.
+
+Si una validación adicional requiere revisión manual, el agente debe decirlo explícitamente y no sustituirla con afirmaciones vagas.
+
+---
+
 ## Contexto del curso
 
 ### Perfil del curso
