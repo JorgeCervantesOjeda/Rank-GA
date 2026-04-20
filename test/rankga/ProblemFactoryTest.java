@@ -2,6 +2,7 @@ package rankga;
 
 import Problems.ProblemPseudoachromaticIndexConnex;
 import Problems.ProblemRastrigin;
+import Problems.ProblemLeadingOnes;
 import Problems.ProblemOneMax;
 import Problems.ProblemTS;
 import java.io.ByteArrayOutputStream;
@@ -115,6 +116,7 @@ public class ProblemFactoryTest {
     assertTrue( available.contains( "heawood" ) );
     assertTrue( available.contains( "pseudo-connex" ) );
     assertTrue( available.contains( "one-max" ) );
+    assertTrue( available.contains( "leading-ones" ) );
   }
 
   @Test
@@ -151,6 +153,24 @@ public class ProblemFactoryTest {
                                                                new LinkedHashMap<>() ) );
 
     assertTrue( problem instanceof ProblemPseudoachromaticIndexConnex );
+  }
+
+  @Test
+  public void createBuildsConfiguredLeadingOnesProblem() {
+    Map<String, String> options = ProblemFactory.parseArguments(
+      new String[] { "--genome-length=12" } );
+
+    Problem problem = ProblemFactory.create( "leading-ones",
+                                             options,
+                                             1234L );
+
+    assertTrue( problem instanceof ProblemLeadingOnes );
+    assertEquals( 12,
+                  problem.getGenomeLength() );
+    assertEquals( "genomeLength=12",
+                  ProblemFactory.describeProblemParameters( "leading-ones",
+                                                            options,
+                                                            problem ) );
   }
 
   @Test

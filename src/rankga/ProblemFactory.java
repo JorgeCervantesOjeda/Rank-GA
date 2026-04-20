@@ -7,6 +7,7 @@ import Problems.ProblemHeawoodRainbow;
 import Problems.ProblemHillSideSearch;
 import Problems.ProblemIC;
 import Problems.ProblemKnapsack;
+import Problems.ProblemLeadingOnes;
 import Problems.ProblemNIAH;
 import Problems.ProblemNK;
 import Problems.ProblemOneMax;
@@ -129,6 +130,10 @@ public final class ProblemFactory {
         return new ProblemOneMax( readIntOption( options,
                                                  "genomelength",
                                                  8 ) );
+      case "leadingones":
+        return new ProblemLeadingOnes( readIntOption( options,
+                                                      "genomelength",
+                                                      8 ) );
       case "rastrigin":
         return new ProblemRastrigin( readIntOption( options,
                                                      "dimensions",
@@ -290,6 +295,7 @@ public final class ProblemFactory {
                       3 );
         break;
       case "onemax":
+      case "leadingones":
         addParameter( parameters,
                       "genomeLength",
                       readIntOption( options,
@@ -474,7 +480,7 @@ public final class ProblemFactory {
    */
   public static String availableProblems() {
     return "ts-reals, ts-simple, ts-jumps, ts, knapsack, task-assignment, "
-           + "districts, ic, nk, one-max, rastrigin, needle, deceptive, "
+           + "districts, ic, nk, one-max, leading-ones, rastrigin, needle, deceptive, "
            + "hillside, niah, heawood, pseudo, pseudo-connex";
   }
 

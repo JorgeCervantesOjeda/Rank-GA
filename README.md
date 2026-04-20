@@ -109,6 +109,7 @@ Examples:
 ant run -Dapplication.args="--help"
 ant run -Dapplication.args=""
 ant run -Dapplication.args="--problem=one-max --genome-length=8 --population=20 --repetitions=100 --seed=1234"
+ant run -Dapplication.args="--problem=leading-ones --genome-length=32 --population=20 --repetitions=100 --seed=1234"
 ant run -Dapplication.args="--problem=heawood --colors=3"
 ant run -Dapplication.args="--problem=ts-reals --population=20 --repetitions=10"
 ant run -Dapplication.args="--problem=one-max --genome-length=8 --population=20 --repetitions=100 --seed=1234 --patience-ms=60000 --incumbent-update=neutral --patience-reset=movement"
@@ -155,6 +156,7 @@ incumbent policy.
 | Problem | Defaults |
 | --- | --- |
 | `one-max` | `genome-length=8` |
+| `leading-ones` | `genome-length=8` |
 | `ts` | `n=20` |
 | `ts-reals` | no CLI size parameter exposed; instance size comes from the problem data |
 | `ts-simple` | no CLI parameter exposed |
