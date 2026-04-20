@@ -154,6 +154,9 @@ public class RankGAAdaptiveTest {
     throws IOException {
     deleteFilesWithPrefix( Paths.get( "." ),
                            prefix );
+    deleteFilesWithPrefix( Paths.get( "figures" ),
+                           prefix.replace( '_',
+                                           '-' ) );
     Path runsRoot = Paths.get( "runs" );
     if( !Files.exists( runsRoot ) ) {
       return;

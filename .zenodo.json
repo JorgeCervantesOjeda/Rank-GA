@@ -1,0 +1,27 @@
+{
+  "title": "RankGA: A rank-based genetic algorithm in Java",
+  "upload_type": "software",
+  "access_right": "open",
+  "license": "mit",
+  "language": "eng",
+  "creators": [
+    {
+      "name": "Cervantes Ojeda, Jorge",
+      "type": "ProjectMember"
+    }
+  ],
+  "keywords": [
+    "genetic algorithm",
+    "evolutionary computation",
+    "metaheuristics",
+    "optimization",
+    "java"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/JorgeCervantesOjeda/Rank-GA",
+      "relation": "isSupplementTo",
+      "resource_type": "software"
+    }
+  ]
+}

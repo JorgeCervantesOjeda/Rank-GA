@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use RankGA, please cite the GitHub release or Zenodo record."
+title: "RankGA"
+type: software
+authors:
+  - family-names: "Cervantes Ojeda"
+    given-names: "Jorge"
+    email: "jorge.cervantes.ojeda@gmail.com"
+abstract: >-
+  RankGA is a rank-based genetic algorithm implemented in Java. The repository
+  separates the GA core from problem encodings so that each problem can be run,
+  tested, and compared independently.
+repository-code: "https://github.com/JorgeCervantesOjeda/Rank-GA"
+url: "https://github.com/JorgeCervantesOjeda/Rank-GA"
+license: "MIT"
+keywords:
+  - "genetic algorithm"
+  - "evolutionary computation"
+  - "metaheuristics"
+  - "optimization"
+  - "java"

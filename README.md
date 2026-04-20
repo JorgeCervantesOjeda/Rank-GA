@@ -267,6 +267,16 @@ Windows fallback:
 powershell -ExecutionPolicy Bypass -File scripts/run-tests.ps1
 ```
 
+## Citation And Archival
+
+The repository includes both `CITATION.cff` and `.zenodo.json` metadata files.
+GitHub uses `CITATION.cff` for citation guidance, while Zenodo uses
+`.zenodo.json` when archiving a GitHub release.
+
+Until a Zenodo DOI is minted for a specific release, cite the corresponding
+GitHub release URL. Once Zenodo archival is enabled for the repository, each
+new GitHub release can be archived and cited via its Zenodo DOI.
+
 ## License
 
 The repository-authored code and text are licensed under the MIT License unless

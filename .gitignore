@@ -43,4 +43,6 @@ Thumbs.db
 
 # Historical test artefacts that should not return to the repo
 figures/_test_*.png
+figures/plain-stub-problem_*
+figures/adaptive-stub-problem_*
 data/_rankGA_test.xlsx
