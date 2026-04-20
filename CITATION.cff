@@ -7,9 +7,6 @@ authors:
   - family-names: "Cervantes Ojeda"
     given-names: "Jorge"
     email: "jcervantes@cua.uam.mx"
-  - family-names: "Gómez-Fuentes"
-    given-names: "María del Carmen"
-    email: "mgomez@cua.uam.mx"
 abstract: >-
   RankGA is a rank-based genetic algorithm implemented in Java. The repository
   separates the GA core from problem encodings so that each problem can be run,
