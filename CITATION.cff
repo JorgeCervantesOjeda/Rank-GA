@@ -1,7 +1,8 @@
 cff-version: 1.2.0
-message: "If you use RankGA, please cite the GitHub release or Zenodo record."
+message: "If you use RankGA, please cite the Zenodo record for version v1.0.0."
 title: "RankGA"
 type: software
+version: "v1.0.0"
 authors:
   - family-names: "Cervantes Ojeda"
     given-names: "Jorge"
@@ -12,6 +13,10 @@ abstract: >-
   tested, and compared independently.
 repository-code: "https://github.com/JorgeCervantesOjeda/Rank-GA"
 url: "https://github.com/JorgeCervantesOjeda/Rank-GA"
+doi: "10.5281/zenodo.19666528"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.19666528"
 license: "MIT"
 keywords:
   - "genetic algorithm"

@@ -1,5 +1,7 @@
 # RankGA
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19666528.svg)](https://doi.org/10.5281/zenodo.19666528)
+
 RankGA is a rank-based genetic algorithm implemented in Java.
 The repository separates the GA core from the problem encodings so that each
 problem can be run, tested, and compared independently.
@@ -273,9 +275,13 @@ The repository includes both `CITATION.cff` and `.zenodo.json` metadata files.
 GitHub uses `CITATION.cff` for citation guidance, while Zenodo uses
 `.zenodo.json` when archiving a GitHub release.
 
-Until a Zenodo DOI is minted for a specific release, cite the corresponding
-GitHub release URL. Once Zenodo archival is enabled for the repository, each
-new GitHub release can be archived and cited via its Zenodo DOI.
+The first archived software release is:
+
+- Zenodo DOI: `10.5281/zenodo.19666528`
+- DOI URL: <https://doi.org/10.5281/zenodo.19666528>
+
+Until a newer Zenodo DOI is minted for a later specific release, prefer citing
+this Zenodo record over the GitHub release URL.
 
 The release archive intended for citation excludes supplementary materials that
 are not part of the minimal software package, such as `references/`,
