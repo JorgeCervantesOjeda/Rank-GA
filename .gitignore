@@ -30,6 +30,7 @@ build/
 *.sql
 *.sqlite
 *.txt*
+!data/qatar194.tsp.txt
 
 # OS generated files #
 ######################

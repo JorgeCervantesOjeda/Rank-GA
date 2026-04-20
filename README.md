@@ -277,6 +277,12 @@ Until a Zenodo DOI is minted for a specific release, cite the corresponding
 GitHub release URL. Once Zenodo archival is enabled for the repository, each
 new GitHub release can be archived and cited via its Zenodo DOI.
 
+The release archive intended for citation excludes supplementary materials that
+are not part of the minimal software package, such as `references/`,
+`runs/`, generated `figures/`, local NetBeans private files, and selected data
+analysis spreadsheets. The working repository may still keep those materials
+for local research use.
+
 ## License
 
 The repository-authored code and text are licensed under the MIT License unless

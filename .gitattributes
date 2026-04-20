@@ -1,0 +1,18 @@
+AGENTS.md export-ignore
+qa194.tsp.txt export-ignore
+RANKGA_EXPLICACION.pdf export-ignore
+RANKGA_EXPLICACION.tex export-ignore
+revisionAlgGenE.tex export-ignore
+sols_14.rtf export-ignore
+
+references/** export-ignore
+runs/** export-ignore
+figures/** export-ignore
+edge_colorings/** export-ignore
+nbproject/private/** export-ignore
+
+data/Colindancias.xlsx export-ignore
+data/Gr.xlsx export-ignore
+data/PseudoachromaticIndex_analysis.xlsx export-ignore
+data/mejores.xlsx export-ignore
+data/genotype_histogram.csv export-ignore
