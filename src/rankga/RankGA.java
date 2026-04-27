@@ -1,12 +1,13 @@
 package rankga;
 
-import java.io.BufferedWriter;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Date;
@@ -14,53 +15,37 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
-import java.nio.file.Path;
 import static rankga.ConvertTime.convertMillisToTimeFormat;
 
 /**
- * RankGA — Genetic Algorithm (GA) driver using rank-based selection, pairwise
- * recombination, and rank-based mutation intensity.
+ * RankGA — Genetic Algorithm (GA) driver using rank-based selection, pairwise recombination, and rank-based mutation intensity.
  *
  * <h2>Overview</h2>
  * This class coordinates the full evolutionary loop:
  * <ol>
- * <li><b>Initialization</b>: create a population for a specific
- * {@link Problem}.</li>
- * <li><b>Evaluation</b>: compute fitness and keep population sorted
- * (descending).</li>
- * <li><b>Selection</b>: rank-based cloning with stochastic rounding to keep
- * size exactly N.</li>
- * <li><b>Recombination</b>: pair sorted individuals (0,1), (2,3), … with
- * uniform crossover.</li>
- * <li><b>Mutation</b>: per-individual <em>intensity</em> I<sub>i</sub> = G ·
- * (rank)<sup>β</sup>, β = ln(G/L)/ln(N−1).</li>
- * <li><b>Adaptation</b>: if the problem implements
- * {@link AdaptiveProblem}, allow it to adjust its internal parameters based on
- * the current best fitness.</li>
- * <li><b>Termination</b>: stop when (a) the configured patience policy has not
- * accepted progress within the patience window, or (b) the problem’s goal
- * fitness is reached.</li>
+ * <li><b>Initialization</b>: create a population for a specific {@link Problem}.</li>
+ * <li><b>Evaluation</b>: compute fitness and keep population sorted (descending).</li>
+ * <li><b>Selection</b>: rank-based cloning with stochastic rounding to keep size exactly N.</li>
+ * <li><b>Recombination</b>: pair sorted individuals (0,1), (2,3), … with uniform crossover.</li>
+ * <li><b>Mutation</b>: per-individual <em>intensity</em> I<sub>i</sub> = G · (rank)<sup>β</sup>, β = ln(G/L)/ln(N−1).</li>
+ * <li><b>Adaptation</b>: if the problem implements {@link AdaptiveProblem}, allow it to adjust its internal parameters based on the current best fitness.</li>
+ * <li><b>Termination</b>: stop when (a) the configured patience policy has not accepted progress within the patience window, or (b) the problem’s goal fitness
+ * is reached.</li>
  * </ol>
  *
  * <h2>Logging</h2>
- * The driver prints compact progress lines to stdout and appends two files per
- * run:
+ * The driver prints compact progress lines to stdout and appends two files per run:
  * <ul>
- * <li><code>&lt;problemRunName&gt;.txt</code>: chronological log of best-so-far
- * snapshots.</li>
- * <li><code>&lt;problemRunName&gt;_&lt;rep&gt;.txt</code>: last full population
- * dump for the repetition.</li>
+ * <li><code>&lt;problemRunName&gt;.txt</code>: chronological log of best-so-far snapshots.</li>
+ * <li><code>&lt;problemRunName&gt;_&lt;rep&gt;.txt</code>: last full population dump for the repetition.</li>
  * </ul>
  *
  * <h2>Caveats / Assumptions</h2>
  * <ul>
  * <li>Fitness is maximized (higher is better).</li>
- * <li>{@link Population#evaluate()} must be called after operators to maintain
- * sorting.</li>
- * <li>Patience is measured in wall-clock time and its reset semantics are
- * configurable: by strict fitness improvement or by incumbent movement.</li>
- * <li>The default launch problem is selected via {@code --problem}; if absent,
- * {@code one-max} is used.</li>
+ * <li>{@link Population#evaluate()} must be called after operators to maintain sorting.</li>
+ * <li>Patience is measured in wall-clock time and its reset semantics are configurable: by strict fitness improvement or by incumbent movement.</li>
+ * <li>The default launch problem is selected via {@code --problem}; if absent, {@code one-max} is used.</li>
  * </ul>
  *
  * Author: Jorge Cervantes — Universidad Autónoma Metropolitana, Mexico City
@@ -71,10 +56,8 @@ public class RankGA {
    * Max wall-clock time without improvement before stopping (milliseconds).
    */
   static final long DEFAULT_PATIENCE_MILLIS = 1 * 60L * 1000L;
-  private static final String SNAPSHOT_HEADER =
-    "t\tni\trep\tg\ts\tph\td\trank\tp\tfitness\textra\tgenes\tDateTime\tmil";
-  private static final String POPULATION_HEADER =
-    "rank\tmutationIntensity\tfitness\textra\tgenes";
+  private static final String SNAPSHOT_HEADER = "t\tni\trep\tg\ts\tph\td\trank\tp\tfitness\textra\tgenes\tDateTime\tmil";
+  private static final String POPULATION_HEADER = "rank\tmutationIntensity\tfitness\textra\tgenes";
 
   public enum IncumbentUpdatePolicy {
     STRICT,
@@ -95,6 +78,7 @@ public class RankGA {
             + "'. Allowed: strict, neutral" );
       }
     }
+
   }
 
   public enum PatienceResetPolicy {
@@ -116,9 +100,11 @@ public class RankGA {
             + "'. Allowed: fitness, movement" );
       }
     }
+
   }
 
-  // --- GA state (static for a simple single-run driver) ---------------------------------------
+  // --- GA state (static for a simple single-run driver)
+  // ---------------------------------------
   /**
    * Current population instance for the active repetition.
    */
@@ -128,15 +114,14 @@ public class RankGA {
    * Timestamps for run start and periodic progress.
    */
   static protected Date startTime;
-  static protected final Date runTime = new Date();  // elapsed since start
-  static protected final Date tryTime = new Date();  // elapsed since last improvement
-  static protected Date notImproved = new Date();    // last time an improvement was recorded
-  static protected Date lastDisplay = new Date();    // last time we printed a progress line
-  static protected Date now;                         // current timestamp snapshot
+  static protected final Date runTime = new Date(); // elapsed since start
+  static protected final Date tryTime = new Date(); // elapsed since last improvement
+  static protected Date notImproved = new Date(); // last time an improvement was recorded
+  static protected Date lastDisplay = new Date(); // last time we printed a progress line
+  static protected Date now; // current timestamp snapshot
 
   /**
-   * Best-so-far individual (deep copy) used to detect genuine improvements and
-   * log snapshots.
+   * Best-so-far individual (deep copy) used to detect genuine improvements and log snapshots.
    */
   static protected Individual lastBest;
 
@@ -150,10 +135,8 @@ public class RankGA {
    */
   static protected long generation;
   static protected long patienceMillis = DEFAULT_PATIENCE_MILLIS;
-  static protected IncumbentUpdatePolicy incumbentUpdatePolicy =
-    IncumbentUpdatePolicy.STRICT;
-  static protected PatienceResetPolicy patienceResetPolicy =
-    PatienceResetPolicy.FITNESS;
+  static protected IncumbentUpdatePolicy incumbentUpdatePolicy = IncumbentUpdatePolicy.STRICT;
+  static protected PatienceResetPolicy patienceResetPolicy = PatienceResetPolicy.FITNESS;
 
   // --------------------------------------------------------------------------------------------
   // Entry point
@@ -163,8 +146,8 @@ public class RankGA {
     String problemId = options.getOrDefault( "problem",
                                              "one-max" );
     long seed = ProblemFactory.readLongOption( options,
-                                                "seed",
-                                                System.currentTimeMillis() );
+                                               "seed",
+                                               System.currentTimeMillis() );
 
     if( options.containsKey( "help" )
         || "help".equals( problemId ) ) {
@@ -179,21 +162,20 @@ public class RankGA {
                                                     "repetitions",
                                                     10 );
     long selectedPatienceMillis = ProblemFactory.readLongOption(
-      options,
-      "patiencems",
-      DEFAULT_PATIENCE_MILLIS );
-    IncumbentUpdatePolicy selectedIncumbentUpdatePolicy =
-      IncumbentUpdatePolicy.fromOption( options.get( "incumbentupdate" ) );
-    PatienceResetPolicy selectedPatienceResetPolicy =
-      PatienceResetPolicy.fromOption( options.get( "patiencereset" ) );
+         options,
+         "patiencems",
+         DEFAULT_PATIENCE_MILLIS );
+    IncumbentUpdatePolicy selectedIncumbentUpdatePolicy = IncumbentUpdatePolicy
+                          .fromOption( options.get( "incumbentupdate" ) );
+    PatienceResetPolicy selectedPatienceResetPolicy = PatienceResetPolicy.fromOption( options.get( "patiencereset" ) );
 
     Problem problem = ProblemFactory.create( problemId,
                                              options,
                                              seed );
     String problemParameters = ProblemFactory.describeProblemParameters(
-      problemId,
-      options,
-      problem );
+           problemId,
+           options,
+           problem );
     run( problem,
          populationSize,
          repetitions,
@@ -202,15 +184,15 @@ public class RankGA {
          selectedPatienceMillis,
          selectedIncumbentUpdatePolicy,
          selectedPatienceResetPolicy );
-    }
+  }
 
   /**
    * Execute a full Rank-GA run for a selected problem.
    *
-   * @param problem owning problem
+   * @param problem        owning problem
    * @param populationSize population size N
-   * @param repetitions number of full runs
-   * @param seed base seed for the run
+   * @param repetitions    number of full runs
+   * @param seed           base seed for the run
    */
   public static void run( Problem problem,
                           int populationSize,
@@ -229,12 +211,11 @@ public class RankGA {
   /**
    * Execute a full Rank-GA run for a selected problem.
    *
-   * @param problem owning problem
-   * @param populationSize population size N
-   * @param repetitions number of full runs
-   * @param seed base seed for the run
-   * @param problemParameters semicolon-separated description of the effective
-   *                          problem parameters used for this run
+   * @param problem           owning problem
+   * @param populationSize    population size N
+   * @param repetitions       number of full runs
+   * @param seed              base seed for the run
+   * @param problemParameters semicolon-separated description of the effective problem parameters used for this run
    */
   public static void run( Problem problem,
                           int populationSize,
@@ -254,17 +235,14 @@ public class RankGA {
   /**
    * Execute a full Rank-GA run with explicit incumbency and patience policies.
    *
-   * @param problem owning problem
-   * @param populationSize population size N
-   * @param repetitions number of full runs
-   * @param seed base seed for the run
-   * @param problemParameters semicolon-separated description of the effective
-   *                          problem parameters used for this run
-   * @param patienceMillis max wall-clock time without accepted progress
-   * @param selectedIncumbentUpdatePolicy policy that decides whether neutral
-   *                                      moves can replace the incumbent
-   * @param selectedPatienceResetPolicy policy that decides what resets
-   *                                    patience
+   * @param problem                       owning problem
+   * @param populationSize                population size N
+   * @param repetitions                   number of full runs
+   * @param seed                          base seed for the run
+   * @param problemParameters             semicolon-separated description of the effective problem parameters used for this run
+   * @param patienceMillis                max wall-clock time without accepted progress
+   * @param selectedIncumbentUpdatePolicy policy that decides whether neutral moves can replace the incumbent
+   * @param selectedPatienceResetPolicy   policy that decides what resets patience
    */
   public static void run( Problem problem,
                           int populationSize,
@@ -287,11 +265,10 @@ public class RankGA {
     String problemName = problem.getProblemName();
     Path outputDirectory = RunOutputPaths.ensureFamilyDirectory( problem );
     String problemRunName = outputDirectory.resolve(
-      problemName + "_seed" + seed + "_" + runId
-    ).toString();
+           problemName + "_seed" + seed + "_" + runId ).toString();
     Path summaryFile = outputDirectory.resolve(
-      problemName + "_seed" + seed + "_" + runId
-      + "_summary.csv" );
+         problemName + "_seed" + seed + "_" + runId
+         + "_summary.csv" );
     Path summaryMetadataFile = metadataFileFor( summaryFile );
 
     System.out.println( "Patience: " + convertMillisToTimeFormat( patienceMillis ) );
@@ -301,10 +278,10 @@ public class RankGA {
     System.out.println( "Repetitions: " + repetitions );
     System.out.println( "Incumbent update policy: "
                         + selectedIncumbentUpdatePolicy.name().toLowerCase(
-                          Locale.ROOT ) );
+        Locale.ROOT ) );
     System.out.println( "Patience reset policy: "
                         + selectedPatienceResetPolicy.name().toLowerCase(
-                          Locale.ROOT ) );
+        Locale.ROOT ) );
 
     writeStructuredSummaryMetadata( summaryMetadataFile,
                                     problem,
@@ -323,7 +300,8 @@ public class RankGA {
     // Outer loop: repeat full runs to assess robustness / variance.
     for( repetition = 0; repetition < repetitions; repetition++ ) {
 
-      // --- Reset run-level clocks/state -------------------------------------------------------
+      // --- Reset run-level clocks/state
+      // -------------------------------------------------------
       startTime = new Date();
       long repetitionSeed = seed + repetition;
       Random repetitionRandom = new Random( repetitionSeed );
@@ -336,7 +314,8 @@ public class RankGA {
       lastDisplay = new Date();
       now = new Date();
 
-      // --- Header for console logging ---------------------------------------------------------
+      // --- Header for console logging
+      // ---------------------------------------------------------
       System.out.println(
         "t\tni\trep\tg\ts\tph\td\trank\tp\tfitness\textra\tgenes\tDateTime\tmil" );
 
@@ -386,9 +365,9 @@ public class RankGA {
   /**
    * Execute a full Rank-GA run for a selected problem.
    *
-   * @param problem owning problem
+   * @param problem        owning problem
    * @param populationSize population size N
-   * @param repetitions number of full runs
+   * @param repetitions    number of full runs
    */
   public static void run( Problem problem,
                           int populationSize,
@@ -405,26 +384,25 @@ public class RankGA {
   /**
    * Creates a fresh population and evaluates it (so it starts sorted).
    * <p>
-   * Population size is supplied by the launcher.</p>
+   * Population size is supplied by the launcher.
+   * </p>
    *
-   * @return number of fitness evaluations performed to initialize the
-   *         population
+   * @return number of fitness evaluations performed to initialize the population
    */
   private static long initializePopulation( Problem problem,
                                             int populationSize,
                                             Random randomizer ) {
     population = new Population( populationSize,
                                  problem,
-                                 true,        // randomize initial genomes
-                                 randomizer   // PRNG
-    );
+                                 true, // randomize initial genomes
+                                 randomizer // PRNG
+  );
     population.evaluate(); // compute fitness and sort descending
     return population.getSize();
   }
 
   /**
-   * Evaluate the current population after one operator phase and count the
-   * number of fitness computations performed.
+   * Evaluate the current population after one operator phase and count the number of fitness computations performed.
    *
    * @param problemRunName log file prefix
    * @param problem        owning problem for deep-copy factories
@@ -435,10 +413,12 @@ public class RankGA {
                                         Problem problem ) {
     long evaluations = 0L;
 
-    // --- Selection (rank-based cloning) -------------------------------------------------------
+    // --- Selection (rank-based cloning)
+    // -------------------------------------------------------
     population.select();
 
-    // --- Recombination in adjacent pairs, then evaluate and check improvement ----------------
+    // --- Recombination in adjacent pairs, then evaluate and check improvement
+    // ----------------
     population.recombine();
     population.evaluate();
     evaluations += population.getSize();
@@ -446,7 +426,8 @@ public class RankGA {
                       problemRunName,
                       problem ); // “R” = post-Recombination snapshot if better
 
-    // --- Mutation with rank-based intensity, then evaluate and check improvement --------------
+    // --- Mutation with rank-based intensity, then evaluate and check improvement
+    // --------------
     population.mutate();
     population.evaluate();
     evaluations += population.getSize();
@@ -463,8 +444,7 @@ public class RankGA {
   /**
    * Append one structured CSV row for a repetition.
    *
-   * The per-row CSV keeps only repetition-varying data. Run-level metadata is
-   * written once to the companion {@code *_summary_meta.csv} file.
+   * The per-row CSV keeps only repetition-varying data. Run-level metadata is written once to the companion {@code *_summary_meta.csv} file.
    */
   private static void appendStructuredSummary( Path summaryFile,
                                                int repetitionIndex,
@@ -482,7 +462,7 @@ public class RankGA {
           "repetition,repetition_seed,evaluations,best_fitness,elapsed_ms,termination_reason" );
       }
       out.println(
-          String.join(
+        String.join(
           ",",
           Integer.toString( repetitionIndex ),
           Long.toString( repetitionSeed ),
@@ -537,10 +517,10 @@ public class RankGA {
                    + Long.toString( patienceMillis ) );
       out.println( csvField( "incumbent_update_policy" ) + ","
                    + csvField( incumbentUpdatePolicy.name().toLowerCase(
-                     Locale.ROOT ) ) );
+          Locale.ROOT ) ) );
       out.println( csvField( "patience_reset_policy" ) + ","
                    + csvField( patienceResetPolicy.name().toLowerCase(
-                     Locale.ROOT ) ) );
+          Locale.ROOT ) ) );
       out.println( csvField( "output_prefix" ) + ","
                    + csvField( problemRunName ) );
     } catch( IOException e ) {
@@ -562,11 +542,9 @@ public class RankGA {
   }
 
   /**
-   * Best-effort post-processing: generate the ordered figures automatically
-   * after the summary CSV is complete.
+   * Best-effort post-processing: generate the ordered figures automatically after the summary CSV is complete.
    *
-   * The run itself should not fail just because plotting is unavailable on the
-   * local machine.
+   * The run itself should not fail just because plotting is unavailable on the local machine.
    *
    * @param summaryFile structured summary produced by this run
    */
@@ -588,11 +566,11 @@ public class RankGA {
 
     try {
       Process process = new ProcessBuilder( command )
-        .redirectErrorStream( true )
-        .start();
+              .redirectErrorStream( true )
+              .start();
 
       try( BufferedReader reader = new BufferedReader(
-                       new InputStreamReader( process.getInputStream() ) ) ) {
+                          new InputStreamReader( process.getInputStream() ) ) ) {
         String line;
         while( ( line = reader.readLine() ) != null ) {
           System.out.println( line );
@@ -604,7 +582,8 @@ public class RankGA {
         System.out.println( "Plot generation failed with exit code "
                             + exitCode + " for " + summaryFile );
       }
-    } catch( IOException | InterruptedException e ) {
+    } catch( IOException |
+             InterruptedException e ) {
       if( e instanceof InterruptedException ) {
         Thread.currentThread().interrupt();
       }
@@ -616,12 +595,9 @@ public class RankGA {
   // Improvement detection & snapshot logging
   // --------------------------------------------------------------------------------------------
   /**
-   * Evaluate the current best against the incumbent according to the configured
-   * policies. Incumbent replacement and patience reset are intentionally
-   * decoupled.
+   * Evaluate the current best against the incumbent according to the configured policies. Incumbent replacement and patience reset are intentionally decoupled.
    *
-   * @param phase          phase tag (“R” after recombination, “M” after
-   *                       mutation, etc.)
+   * @param phase          phase tag (“R” after recombination, “M” after mutation, etc.)
    * @param problemRunName log file prefix
    * @param problem        owning problem for deep-copy factory
    */
@@ -637,7 +613,7 @@ public class RankGA {
 
     if( movedIncumbent ) {
       report( phase,
-              problemRunName );                            // print and persist a snapshot
+              problemRunName ); // print and persist a snapshot
       lastBest = problem.getNewIndividual( candidate ); // deep copy new incumbent
       if( shouldResetPatience( improvedFitness,
                                movedIncumbent,
@@ -693,8 +669,7 @@ public class RankGA {
   /**
    * Periodically prints a terse progress line to stdout (no file I/O).
    * <ul>
-   * <li>Every patienceMillis/10 milliseconds, shows elapsed, generations, and speed
-   * (gen/ms).</li>
+   * <li>Every patienceMillis/10 milliseconds, shows elapsed, generations, and speed (gen/ms).</li>
    * <li>Useful for monitoring without overwhelming the console.</li>
    * </ul>
    */
@@ -703,15 +678,14 @@ public class RankGA {
                                       patienceMillis / 10L );
     if( ( now.getTime() - lastDisplay.getTime() ) > progressInterval ) {
       lastDisplay = new Date();
-      runTime.setTime( now.getTime() - startTime.getTime() );     // total elapsed
-      tryTime.setTime( now.getTime() - notImproved.getTime() );   // time since last improvement
+      runTime.setTime( now.getTime() - startTime.getTime() ); // total elapsed
+      tryTime.setTime( now.getTime() - notImproved.getTime() ); // time since last improvement
 
       System.out.println(
         "\r" + convertMillisToTimeFormat( runTime.getTime() )
         + " g:" + generation
         + " s:" + ( (float) generation / runTime.getTime() )
-        + " ni:" + convertMillisToTimeFormat( tryTime.getTime() ) + " --"
-      );
+        + " ni:" + convertMillisToTimeFormat( tryTime.getTime() ) + " --" );
       System.out.flush();
     }
   }
@@ -722,38 +696,34 @@ public class RankGA {
   /**
    * Emits a best-so-far snapshot:
    * <ul>
-   * <li>Console: a single-line summary with elapsed times, phase tag, diversity
-   * (distance), best individual summary, genome string, wall-clock timestamp,
-   * and milliseconds since start.</li>
-   * <li>File: appends the same line to
-   * <code>&lt;problemRunName&gt;.txt</code>.</li>
-   * <li>Population dump: writes the full current population to
-   * <code>&lt;problemRunName&gt;_&lt;rep&gt;.txt</code> (overwriting the
-   * previous dump for this repetition).</li>
+   * <li>Console: a single-line summary with elapsed times, phase tag, diversity (distance), best individual summary, genome string, wall-clock timestamp, and
+   * milliseconds since start.</li>
+   * <li>File: appends the same line to <code>&lt;problemRunName&gt;.txt</code>.</li>
+   * <li>Population dump: writes the full current population to <code>&lt;problemRunName&gt;_&lt;rep&gt;.txt</code> (overwriting the previous dump for this
+   * repetition).</li>
    * </ul>
    *
-   * @param phase       phase tag: "S" (Start), "R" (after recombination), "M"
-   *                    (after mutation), "L" (Last)
+   * @param phase       phase tag: "S" (Start), "R" (after recombination), "M" (after mutation), "L" (Last)
    * @param problemName file prefix (problem name + timestamp)
    */
   static protected void report( String phase,
                                 String problemName ) {
     Individual best = population.getFittest();
-    double distance = best.distanceSqTo( lastBest );       // diversity relative to previous best copy
+    double distance = best.distanceSqTo( lastBest ); // diversity relative to previous best copy
     Date now = new Date();
 
     String reportString = String.format(
-           "%s %s %d %d %9.7f %s %.2e\t%s\t%s\t%s %d\n",
-           convertMillisToTimeFormat( now.getTime() - startTime.getTime() ), // t  (elapsed since start)
+           "%s, %s, %d, %d, %9.7f, %s, %.2e, %s, %s, %s, %d\n",
+           convertMillisToTimeFormat( now.getTime() - startTime.getTime() ), // t (elapsed since start)
            convertMillisToTimeFormat( now.getTime() - notImproved.getTime() ), // ni (since last improvement)
-           repetition,                                                       // rep
-           generation,                                                       // g
-           (float) generation / ( now.getTime() - startTime.getTime() ),     // s = gen / ms
-           phase,                                                            // ph
-           distance,                                                         // d = squared distance
-           best,                                                             // rank, last mut intensity, best fitness, extra
-           best.genomeStr(),                                                 // genes (compact)
-           now,                                                              // DateTime
+           repetition, // rep
+           generation, // g
+           (float) generation / ( now.getTime() - startTime.getTime() ), // s = gen / ms
+           phase, // ph
+           distance, // d = squared distance
+           best, // rank, last mut intensity, best fitness, extra
+           best.genomeStr(), // genes (compact)
+           now, // DateTime
            ( now.getTime() - startTime.getTime() ) // mil (elapsed ms)
          );
 
@@ -768,17 +738,16 @@ public class RankGA {
   }
 
   /**
-   * Append a line to the run-level log file (<problemRunName>.txt).
-   * The file is self-describing because the tab-separated header is written
-   * once, before the first snapshot line.
+   * Append a line to the run-level log file (<problemRunName>.txt). The file is self-describing because the tab-separated header is written once, before the
+   * first snapshot line.
    */
   private static void logToFile( String problemName,
                                  String header,
                                  String content ) {
-    Path logFile = Path.of( problemName + ".txt" );
+    Path logFile = Path.of( problemName + ".csv" );
     boolean writeHeader = !Files.exists( logFile );
     try( PrintWriter out = new PrintWriter(
-                     new BufferedWriter( new FileWriter( problemName + ".txt",
+                     new BufferedWriter( new FileWriter( problemName + ".csv",
                                                          true ) ) ) ) {
       if( writeHeader ) {
         out.println( header );
@@ -790,19 +759,18 @@ public class RankGA {
   }
 
   /**
-   * Write the full current population to a repetition-scoped file
-   * (<problemRunName>_<rep>.txt). The file is overwritten on each snapshot so
-   * it always contains the latest state plus a header row.
+   * Write the full current population to a repetition-scoped file (<problemRunName>_<rep>.txt). The file is overwritten on each snapshot so it always contains
+   * the latest state plus a header row.
    */
   private static void logPopulation( String problemName ) {
     try( PrintWriter out = new PrintWriter(
                      new BufferedWriter( new FileWriter(
-                        problemName + "_" + repetition + ".txt",
-                        false ) ) ) ) {
+                       problemName + "_" + repetition + ".csv",
+                       false ) ) ) ) {
       out.println( POPULATION_HEADER );
       for( int i = 0; i < population.getSize(); i++ ) {
-        out.println( population.getIndividual( i ) + "\t" + population
-          .getIndividual( i ).genomeStr() );
+        out.println( population.getIndividual( i ) + ","
+                     + population.getIndividual( i ).genomeStr() );
       }
     } catch( IOException e ) {
       System.out.println( e );
