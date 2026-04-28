@@ -16,6 +16,13 @@ This folder keeps the papers that motivate the problem implementations in
 | [`symmetric_cycle_5_adapted_rank_ga.pdf`](symmetric_cycle_5_adapted_rank_ga.pdf) | How to construct the symmetric cycle of length 5 using Hajós construction with an adapted Rank Genetic Algorithm | Related Rank GA background |
 | [`symmetric_cycles_odd_length_directed_hajos.pdf`](symmetric_cycles_odd_length_directed_hajos.pdf) | A procedure to obtain symmetric cycles of any odd length using directed Hajós constructions | Related Rank GA background |
 
+## Additional archived background
+
+| Local file | Scope | Related code |
+| --- | --- | --- |
+| [`2008 Cervantes and Stephens.pdf`](2008%20Cervantes%20and%20Stephens.pdf) | Archived background paper by Cervantes and Stephens kept with its local workspace filename. | Related Rank GA background |
+| [`Theoretical_analysis_of_rank_based_mutat.pdf`](Theoretical_analysis_of_rank_based_mutat.pdf) | Archived theory note on rank-based mutation kept with its local workspace filename. | Related Rank GA background |
+
 ## Online-only notes
 
 | Local note | Paper | URL |

@@ -1,0 +1,15 @@
+{
+  "editor.formatOnSave": true,
+  "editor.detectIndentation": false,
+  "editor.insertSpaces": true,
+  "editor.tabSize": 2,
+  "editor.rulers": [160],
+
+  "[java]": {
+    "editor.defaultFormatter": "redhat.java"
+  },
+
+  "java.format.enabled": true,
+  "java.format.settings.url": ".vscode/rankga-eclipse-formatter.xml",
+  "java.format.settings.profile": "RankGA"
+}

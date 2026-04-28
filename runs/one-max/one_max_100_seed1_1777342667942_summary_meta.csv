@@ -1,0 +1,14 @@
+key,value
+"algorithm","RankGA"
+"problem_class","ProblemOneMax"
+"problem_name","one_max_100"
+"problem_parameters","genomeLength=100"
+"base_seed","'1"
+"run_id","'1777342667942"
+"population_size",20
+"repetitions",100
+"goal_fitness",100.00000000000000
+"patience_ms",10000
+"incumbent_update_policy","strict"
+"patience_reset_policy","fitness"
+"output_prefix","runs\one-max\one_max_100_seed1_1777342667942"
