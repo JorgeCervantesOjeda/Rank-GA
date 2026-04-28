@@ -364,7 +364,7 @@ public class Individual {
    */
   @Override
   public String toString() {
-    return String.format( "%d\t%18.17f %18.17e %s",
+    return String.format( "%d, %18.17f, %18.17e, %s",
                           rank,
                           mutationIntensity,
                           fitness,

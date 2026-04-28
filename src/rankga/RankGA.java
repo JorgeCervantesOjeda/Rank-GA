@@ -56,8 +56,8 @@ public class RankGA {
    * Max wall-clock time without improvement before stopping (milliseconds).
    */
   static final long DEFAULT_PATIENCE_MILLIS = 1 * 60L * 1000L;
-  private static final String SNAPSHOT_HEADER = "t\tni\trep\tg\ts\tph\td\trank\tp\tfitness\textra\tgenes\tDateTime\tmil";
-  private static final String POPULATION_HEADER = "rank\tmutationIntensity\tfitness\textra\tgenes";
+  private static final String SNAPSHOT_HEADER = "t, ni, rep, g, s, ph, d, rank, p, fitness, extra, genes, DateTime, mil";
+  private static final String POPULATION_HEADER = "rank, mutationIntensity, fitness, extra, genes";
 
   public enum IncumbentUpdatePolicy {
     STRICT,
@@ -769,7 +769,8 @@ public class RankGA {
                        false ) ) ) ) {
       out.println( POPULATION_HEADER );
       for( int i = 0; i < population.getSize(); i++ ) {
-        out.println( population.getIndividual( i ) + ","
+        out.println( population.getIndividual( i ) 
+                     + ", "
                      + population.getIndividual( i ).genomeStr() );
       }
     } catch( IOException e ) {
