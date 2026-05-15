@@ -1,3 +1,5 @@
+// C:/Users/usuario/ownCloud2/RankGA/src/rankga/RankGA.java
+// Rank-based genetic algorithm driver, reporting, and run artifact writer.
 package rankga;
 
 import java.io.BufferedReader;
@@ -9,6 +11,7 @@ import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -36,8 +39,8 @@ import static rankga.ConvertTime.convertMillisToTimeFormat;
  * <h2>Logging</h2>
  * The driver prints compact progress lines to stdout and appends two files per run:
  * <ul>
- * <li><code>&lt;problemRunName&gt;.txt</code>: chronological log of best-so-far snapshots.</li>
- * <li><code>&lt;problemRunName&gt;_&lt;rep&gt;.txt</code>: last full population dump for the repetition.</li>
+ * <li><code>&lt;problemRunName&gt;.csv</code>: chronological log of compact best-so-far snapshots.</li>
+ * <li><code>&lt;problemRunName&gt;_&lt;rep&gt;.csv</code>: last full population dump for the repetition, with full-precision genes.</li>
  * </ul>
  *
  * <h2>Caveats / Assumptions</h2>
@@ -56,7 +59,7 @@ public class RankGA {
    * Max wall-clock time without improvement before stopping (milliseconds).
    */
   static final long DEFAULT_PATIENCE_MILLIS = 1 * 60L * 1000L;
-  private static final String SNAPSHOT_HEADER = "t, ni, rep, g, s, ph, d, rank, p, fitness, extra, genes, DateTime, mil";
+  private static final String SNAPSHOT_HEADER = "t, ni, rep, g, s, ph, d, rank, mutationIntensity, fitness, extra, genes, DateTime, mil";
   private static final String POPULATION_HEADER = "rank, mutationIntensity, fitness, extra, genes";
 
   public enum IncumbentUpdatePolicy {
@@ -275,6 +278,7 @@ public class RankGA {
     System.out.println( "Seed: " + seed );
     System.out.println( "Problem: " + problemRunName );
     System.out.println( "Population: " + populationSize );
+    System.out.println( "Genome Length: " + problem.getGenomeLength() );
     System.out.println( "Repetitions: " + repetitions );
     System.out.println( "Incumbent update policy: "
                         + selectedIncumbentUpdatePolicy.name().toLowerCase(
@@ -337,7 +341,7 @@ public class RankGA {
 
         // Allow only adaptive problems to adjust internal parameters.
         if( problem instanceof AdaptiveProblem ) {
-          ( (AdaptiveProblem) problem ).adapt( lastBest.getFitness() );
+          ( (AdaptiveProblem) problem ).adapt( population.getFittest() );
         }
 
       }
@@ -507,6 +511,8 @@ public class RankGA {
                    + csvSpreadsheetTextField( Long.toString( runId ) ) );
       out.println( csvField( "population_size" ) + ","
                    + Integer.toString( populationSize ) );
+      out.println( csvField( "genome_length" ) + ","
+                   + Integer.toString( problem.getGenomeLength() ) );
       out.println( csvField( "repetitions" ) + ","
                    + Integer.toString( repetitions ) );
       out.println( csvField( "goal_fitness" ) + ","
@@ -759,22 +765,45 @@ public class RankGA {
   }
 
   /**
-   * Write the full current population to a repetition-scoped file (<problemRunName>_<rep>.txt). The file is overwritten on each snapshot so it always contains
-   * the latest state plus a header row.
+   * Write the full current population to a repetition-scoped file
+   * (<problemRunName>_<rep>.csv). The file is overwritten on each snapshot so
+   * it always contains the latest state plus a header row.
+   * <p>
+   * Only this file uses full-precision gene serialization. Console progress
+   * and best-so-far snapshots remain compact.
+   * </p>
    */
   private static void logPopulation( String problemName ) {
+    Path populationFile = Path.of( problemName + "_" + repetition + ".csv" );
+    Path temporaryPopulationFile = Path.of(
+      problemName + "_" + repetition + ".csv.tmp" );
     try( PrintWriter out = new PrintWriter(
                      new BufferedWriter( new FileWriter(
-                       problemName + "_" + repetition + ".csv",
+                       temporaryPopulationFile.toFile(),
                        false ) ) ) ) {
       out.println( POPULATION_HEADER );
       for( int i = 0; i < population.getSize(); i++ ) {
         out.println( population.getIndividual( i ) 
                      + ", "
-                     + population.getIndividual( i ).genomeStr() );
+                     + population.getIndividual( i ).fullPrecisionGenomeStr() );
+      }
+      out.flush();
+      if( out.checkError() ) {
+        throw new IOException( "could not write full population snapshot" );
       }
     } catch( IOException e ) {
-      System.out.println( e );
+      System.out.println( "Could not atomically write population snapshot: "
+                          + e.getMessage() );
+      return;
+    }
+    try {
+      Files.move( temporaryPopulationFile,
+                  populationFile,
+                  StandardCopyOption.REPLACE_EXISTING,
+                  StandardCopyOption.ATOMIC_MOVE );
+    } catch( IOException e ) {
+      System.out.println( "Could not atomically replace population snapshot: "
+                          + e.getMessage() );
     }
   }
 

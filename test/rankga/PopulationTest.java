@@ -9,6 +9,8 @@ import static org.junit.Assert.assertNotSame;
 
 public class PopulationTest {
 
+  private static final int COUNT_OF_INDIVIDUALS = 20;
+
   @Test
   public void selectKeepsExactlyThreeEliteClonesWhenRanksUseNMinusOne() {
     TestSupport.ValueProblem problem = new TestSupport.ValueProblem(
@@ -16,9 +18,7 @@ public class PopulationTest {
     Population population = newQuietPopulation( problem );
 
     // Put the best value in the middle so evaluate() must sort before selection.
-    population.getIndividual( 0 ).getGene( 0 ).setIntValue( 0 );
-    population.getIndividual( 1 ).getGene( 0 ).setIntValue( 1 );
-    population.getIndividual( 2 ).getGene( 0 ).setIntValue( 0 );
+    population.getIndividual( 10 ).getGene( 0 ).setIntValue( 1 );
 
     population.evaluate();
     assertEquals( 1.0,
@@ -27,13 +27,16 @@ public class PopulationTest {
 
     population.select();
 
-    assertEquals( 3,
+    assertEquals( COUNT_OF_INDIVIDUALS,
                   population.getSize() );
-    for( int i = 0; i < population.getSize(); i++ ) {
+    for( int i = 0; i < 3; i++ ) {
       assertEquals( 1.0,
                     population.getIndividual( i ).getGene( 0 ).getValue(),
                     0.0 );
     }
+    assertEquals( 0.0,
+                  population.getIndividual( 3 ).getGene( 0 ).getValue(),
+                  0.0 );
 
     assertNotSame( population.getIndividual( 0 ),
                    population.getIndividual( 1 ) );
@@ -51,24 +54,25 @@ public class PopulationTest {
       1.0,
       0.5 );
     Population population = newQuietPopulation( problem,
-                                                3,
+                                                COUNT_OF_INDIVIDUALS,
                                                 false,
                                                 new Random( 1 ) );
 
     population.mutate();
 
-    assertEquals( 0.0,
-                  recordingGene( population,
-                                 0 ).getLastIntensity(),
-                  1e-12 );
-    assertEquals( 0.5,
-                  recordingGene( population,
-                                 1 ).getLastIntensity(),
-                  1e-12 );
-    assertEquals( 1.0,
-                  recordingGene( population,
-                                 2 ).getLastIntensity(),
-                  1e-12 );
+    double mutationExponent = Math.log( 1.0 / 0.5 )
+                              / Math.log( COUNT_OF_INDIVIDUALS - 1.0 );
+    for( int index = 0;
+         index < COUNT_OF_INDIVIDUALS;
+         index++ ) {
+      double rank = index / (double) ( COUNT_OF_INDIVIDUALS - 1 );
+      double expectedIntensity = Math.pow( rank,
+                                           mutationExponent );
+      assertEquals( expectedIntensity,
+                    recordingGene( population,
+                                   index ).getLastIntensity(),
+                    1e-12 );
+    }
   }
 
   @Test
@@ -79,7 +83,7 @@ public class PopulationTest {
       1.0,
       0.5 );
     Population population = newQuietPopulation( problem,
-                                                4,
+                                                COUNT_OF_INDIVIDUALS,
                                                 false,
                                                 new TestSupport.ScriptedRandom(
                                                   0.0,
@@ -118,7 +122,7 @@ public class PopulationTest {
 
   private static Population newQuietPopulation( Problem problem ) {
     return newQuietPopulation( problem,
-                              3,
+                              COUNT_OF_INDIVIDUALS,
                               false,
                               new Random( 1 ) );
   }

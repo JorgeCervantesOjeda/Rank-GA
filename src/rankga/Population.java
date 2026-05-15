@@ -142,7 +142,10 @@ public class Population {
     // Optional: log hyperparameters for traceability.
     System.out.println( "NumIndividuals = " + numIndividuals );
     System.out.println( "Selective Pressure = " + SELECTION_PRESSURE + " (fixed)" );
-    System.out.println( "Max Mutation Rate (G) = " + globalSearchIntensity );
+    System.out.println(
+      "Local Search Intensity (L) = " + localSearchIntensity );
+    System.out.println(
+      "Global Search Intensity (G) = " + globalSearchIntensity );
     System.out.println( "Mutation Exponent (beta) = " + mutationExponent );
   }
 
@@ -321,9 +324,12 @@ public class Population {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append( "Mutation Exponent (beta): " ).append( this.mutationExponent )
-      .append( "\tMax Mutation Intensity (G): " ).append(
+    sb.append( "Local Search Intensity (L): " ).append(
+      this.localSearchIntensity )
+      .append( "\tGlobal Search Intensity (G): " ).append(
       this.globalSearchIntensity )
+      .append( "\tMutation Exponent (beta): " ).append(
+      this.mutationExponent )
       .append( "\n" );
 
     // From worst (last) to best (0), mirroring the original implementation.
