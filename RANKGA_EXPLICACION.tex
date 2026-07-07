@@ -168,10 +168,98 @@ En el framework actual:
   \item \(L\) se usa para calibrar la pendiente del perfil de mutaci\'on.
 \end{itemize}
 
+\(G\) debe interpretarse como una intensidad de exploraci\'on global. Debe
+elegirse de modo que una mutaci\'on con intensidad \(G\) pueda llevar al
+individuo a cualquier regi\'on del espacio de b\'usqueda. Idealmente eso debe
+ser posible en una sola generaci\'on. En aplicaciones pr\'acticas puede
+aceptarse una calibraci\'on menos agresiva si permite cubrir cualquier regi\'on
+en dos o tres generaciones, pero la idea conceptual sigue siendo la misma:
+\(G\) no es s\'olo una mutaci\'on ``grande'', sino una escala de mutaci\'on capaz
+de romper la vecindad local del individuo actual.
+
+Para genes discretos con \(\texttt{numValues}\) valores posibles por posici\'on,
+una calibraci\'on natural de la intensidad global es
+\[
+G = 1 - \frac{1}{\texttt{numValues}}.
+\]
+La raz\'on es que, si un valor se remuestrea uniformemente entre
+\(\texttt{numValues}\) posibilidades, la probabilidad de que el valor resultante
+sea distinto del valor actual es \(1 - 1/\texttt{numValues}\). El caso binario
+es el caso particular \(\texttt{numValues}=2\), por lo que
+\[
+G = 1 - \frac{1}{2} = 0.5.
+\]
+En una cadena binaria, mutar cada bit con intensidad \(G=0.5\) hace que cada
+cadena binaria tenga la misma probabilidad de aparecer. Para una cadena de
+longitud \(n\), cualquier cadena espec\'ifica tiene probabilidad
+\[
+\left(\frac{1}{2}\right)^n.
+\]
+Por eso, desde cualquier individuo binario se puede llegar a cualquier otro
+individuo del espacio de b\'usqueda con probabilidad positiva y uniforme.
+
+Algunos ejemplos discretos son:
+\[
+\begin{array}{c|c}
+\texttt{numValues} & G = 1 - 1/\texttt{numValues} \\
+\hline
+2 & 0.5 \\
+4 & 0.75 \\
+10 & 0.9 \\
+100 & 0.99
+\end{array}
+\]
+
+En variables reales, \(G\) debe definirse en las unidades del gen. Si una
+variable \(x\) vive en \([a,b]\), entonces \(G\) debe ser comparable con el
+ancho \(b-a\), o con una fracci\'on suficientemente grande de ese ancho, seg\'un
+el operador de mutaci\'on usado. Por ejemplo, si \(x\in[0,1]\), una escala
+global podr\'ia ser \(0.5\) o \(1.0\); si \(x\in[-10,10]\), podr\'ia ser \(10\)
+o \(20\). La elecci\'on exacta depende de si la mutaci\'on suma ruido uniforme,
+ruido gaussiano u otro tipo de perturbaci\'on.
+
+\(L\), en cambio, debe interpretarse como la menor intensidad local que todav\'ia
+produce un cambio significativo para el resultado. No debe elegirse s\'olo como
+un n\'umero peque\~no, sino como una escala de precisi\'on. Si \(L\) es demasiado
+grande, el algoritmo no puede afinar soluciones; si \(L\) es demasiado peque\~no,
+muchas mutaciones ser\'an irrelevantes y se desperdiciar\'an evaluaciones.
+
+En cadenas binarias de longitud \(n\), una elecci\'on local natural es
+\[
+L \approx \frac{1}{n},
+\]
+porque produce aproximadamente un bit cambiado por mutaci\'on. Por ejemplo:
+\[
+\begin{array}{c|c}
+n & L \approx 1/n \\
+\hline
+10 & 0.1 \\
+50 & 0.02 \\
+100 & 0.01 \\
+1000 & 0.001
+\end{array}
+\]
+
+En cadenas de enteros, si lo m\'inimo significativo es cambiar un solo locus,
+tambi\'en puede usarse \(L\approx 1/n\), donde \(n\) es la longitud del genoma.
+Si los enteros son ordinales y el tama\~no del paso importa, \(L\) debe reflejar
+el menor paso significativo. Por ejemplo, en valores \(0,\dots,99\), si una
+diferencia de una unidad importa, \(L\) puede asociarse con un paso de \(1/99\)
+en escala normalizada; si s\'olo importan cambios de cinco unidades, entonces
+la escala local relevante es \(5/99\).
+
+En variables reales, \(L\) debe ser la precisi\'on m\'inima \'util. Si
+\(x\in[0,1]\) y diferencias menores que \(0.001\) no son relevantes, entonces
+\(L=0.001\) es una escala local razonable. Si \(x\in[0,1000]\) y diferencias
+menores que \(5\) unidades no cambian la evaluaci\'on de forma significativa,
+entonces \(L=5\) describe mejor la resoluci\'on necesaria.
+
+En resumen, \(G\) responde: ``\textquestiondown puedo alcanzar cualquier regi\'on
+del espacio de b\'usqueda?''. \(L\) responde: ``\textquestiondown cu\'al es el
+menor cambio que todav\'ia vale la pena evaluar?''.
+
 El supuesto matem\'atico deseado es \(G > L\), porque entonces el exponente de
-mutaci\'on resulta positivo y la mutaci\'on crece con el rango. En la
-implementaci\'on actual eso no se valida en tiempo de ejecuci\'on; simplemente
-se asume.
+mutaci\'on resulta positivo y la mutaci\'on crece con el rango.
 
 \section{Representaci\'on de individuos y genes}
 
