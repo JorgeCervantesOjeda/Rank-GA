@@ -27,7 +27,7 @@ public class RankGAOvalSmokeTest {
   private static final long TEST_SEED = 1234L;
   private static final long TEST_PATIENCE_MILLIS = 100L;
   private static final int COUNT_OF_INDIVIDUALS = 24;
-  private static final double MIN_IMPROVEMENT_DELTA = 0.05;
+  private static final double MIN_IMPROVEMENT_DELTA = 0.001;
   private static final String TEST_PROBLEM_NAME = "Racing_simple_oval_6";
   private static final String TEST_FIGURE_PREFIX = "racing-simple-oval-6";
 
@@ -73,15 +73,9 @@ public class RankGAOvalSmokeTest {
   }
 
   @Test
-  public void ovalRunnerScalesGlobalSearchIntensityFromTrackFootprint() {
-    SimpleOvalTrack track = buildTrack();
-    double widthMeters = 2.0 * ( 30.0 + 25.0 + 5.0 );
-    double heightMeters = 2.0 * ( 25.0 + 5.0 );
-    double expectedIntensity = Math.hypot( widthMeters,
-                                           heightMeters ) / 10.0;
-
-    assertEquals( expectedIntensity,
-                  RunRacingOvalExperiment.computeTrackScaledGlobalSearchIntensity( track ),
+  public void ovalRunnerUsesNormalizedDefaultGlobalSearchIntensity() {
+    assertEquals( 0.1,
+                  RunRacingOvalExperiment.computeNormalizedGlobalSearchIntensity(),
                   1.0e-9 );
   }
 

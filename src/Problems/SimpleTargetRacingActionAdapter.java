@@ -29,6 +29,18 @@ public final class SimpleTargetRacingActionAdapter
     this.brakeGain = brakeGain;
   }
 
+  public double getDirectionGain() {
+    return directionGain;
+  }
+
+  public double getThrottleGain() {
+    return throttleGain;
+  }
+
+  public double getBrakeGain() {
+    return brakeGain;
+  }
+
   @Override
   public RacingBackendAction toBackendAction( RacingPolicyAction policyAction,
                                               RacingCarState carState ) {
@@ -56,7 +68,9 @@ public final class SimpleTargetRacingActionAdapter
                           : 0.0;
     return new RacingBackendAction( steeringCommand,
                                     throttleCommand,
-                                    brakeCommand );
+                                    brakeCommand,
+                                    policyAction.getDirectionTarget(),
+                                    policyAction.getSpeedTarget() );
   }
 
   private static double clamp( double value,

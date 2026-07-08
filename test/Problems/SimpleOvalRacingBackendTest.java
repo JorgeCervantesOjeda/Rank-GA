@@ -56,6 +56,27 @@ public class SimpleOvalRacingBackendTest {
   }
 
   @Test
+  public void stepUsesHeadingTargetImmediatelyWhenProvided() {
+    SimpleOvalTrack track = buildTrack();
+    SimpleOvalRacingBackend backend = buildBackend( track );
+    SimpleOvalTrack.CenterlinePose pose = track.computeCenterlinePose( 15.0 );
+    backend.resetEpisode( new RacingStartState( pose.getX(),
+                                                pose.getY(),
+                                                0.0,
+                                                0.0 ) );
+
+    RacingStepResult stepResult = backend.step( new RacingBackendAction(
+      0.0,
+      1.0,
+      0.0,
+      Math.PI / 2.0 ) );
+
+    assertEquals( Math.PI / 2.0,
+                  stepResult.getCarState().getHeading(),
+                  1.0e-12 );
+  }
+
+  @Test
   public void stepAdvancesProgressThroughRightTurn() {
     SimpleOvalTrack track = buildTrack();
     SimpleOvalRacingBackend backend = buildBackend( track );

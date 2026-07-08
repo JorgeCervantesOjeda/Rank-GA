@@ -18,4 +18,14 @@ public interface RacingBackend {
 
   boolean isInsideTrack( double x,
                          double y );
+
+  double getPolicyCenterX();
+
+  double getPolicyCenterY();
+
+  double getPolicyHalfRangeX();
+
+  double getPolicyHalfRangeY();
+
+  double getPolicySpeedScale();
 }

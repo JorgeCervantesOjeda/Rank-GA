@@ -196,6 +196,10 @@ public class Individual {
     return fitness;
   }
 
+  public void setFitness( double fitness ) {
+    this.fitness = fitness;
+  }
+
   // --------------------------------------------------------------------------------------------
   // Mutation & Recombination
   // --------------------------------------------------------------------------------------------

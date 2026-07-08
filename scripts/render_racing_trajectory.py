@@ -24,6 +24,7 @@ COUNT_OF_ANCHORS = 50
 COUNT_OF_GENES = COUNT_OF_ANCHORS * GENES_PER_ANCHOR
 GOAL_LAPS = 1.0
 TIME_STEP_SECONDS = 0.2
+RARS_TIME_STEP_SECONDS = 0.05
 STEERING_RATE_GAIN = 1.0
 THROTTLE_ACCELERATION = 12.0
 BRAKE_ACCELERATION = 18.0
@@ -31,6 +32,14 @@ DRAG_COEFFICIENT = 0.05
 MAX_SPEED = 40.0
 INVERSE_DISTANCE_POWER = 2.0
 POLICY_EPSILON = 1.0e-9
+RARS_MASS = 1100.0
+RARS_MAX_POWER = 135000.0
+RARS_FRICTION_COEFFICIENT = 1.4
+RARS_SLIP_SPEED_SCALE = 2.0
+RARS_DRAG_COEFFICIENT = 0.45
+RARS_GRAVITY = 9.81
+
+
 @dataclass(frozen=True)
 class Pose:
     x: float
@@ -72,6 +81,12 @@ class SimpleOvalTrack:
 
     def project_progress(self, x: float, y: float) -> float:
         return self._projection(x, y)[0]
+
+    def policy_half_range_x(self) -> float:
+        return self.half_straight + self.radius + self.half_width
+
+    def policy_half_range_y(self) -> float:
+        return self.radius + self.half_width
 
     def centerline_pose(self, progress: float) -> Pose:
         p = progress % self.lap_length
@@ -156,8 +171,8 @@ class SimpleOvalBackend:
         self.progress = 0.0
         return self.current
 
-    def step(self, action: tuple[float, float, float]) -> tuple[CarState, float, bool]:
-        steering, throttle, brake = action
+    def step(self, action: tuple[float, float, float, float]) -> tuple[CarState, float, bool]:
+        steering, throttle, brake, heading_target = action
         acceleration = (
             THROTTLE_ACCELERATION * throttle
             - BRAKE_ACCELERATION * brake
@@ -165,11 +180,87 @@ class SimpleOvalBackend:
         )
         next_speed = clamp(self.current.speed + acceleration * TIME_STEP_SECONDS, 0.0, MAX_SPEED)
         average_speed = 0.5 * (self.current.speed + next_speed)
-        next_heading = wrap_to_pi(self.current.heading + STEERING_RATE_GAIN * steering * TIME_STEP_SECONDS)
+        next_heading = wrap_to_pi(heading_target)
         next_x = self.current.x + average_speed * math.cos(next_heading) * TIME_STEP_SECONDS
         next_y = self.current.y + average_speed * math.sin(next_heading) * TIME_STEP_SECONDS
         next_time = self.current.time + TIME_STEP_SECONDS
         self.current = CarState(next_x, next_y, next_speed, next_heading, next_time)
+        next_lap_progress = self.track.project_progress(next_x, next_y)
+        self.progress += wrap_progress_delta(next_lap_progress - self.last_lap_progress, self.track.lap_length)
+        self.last_lap_progress = next_lap_progress
+        off_track = not self.track.is_inside_track(next_x, next_y)
+        return self.current, self.progress, off_track
+
+class SimpleOvalRarsBackend:
+    def __init__(self, track: SimpleOvalTrack) -> None:
+        self.track = track
+        self.current = CarState(0.0, 0.0, 0.0, 0.0, 0.0)
+        self.velocity_x = 0.0
+        self.velocity_y = 0.0
+        self.last_lap_progress = 0.0
+        self.progress = 0.0
+
+    def reset(self, start: StartState) -> CarState:
+        if not self.track.is_inside_track(start.x, start.y):
+            raise ValueError("start state must lie inside the track")
+        heading = wrap_to_pi(start.heading)
+        speed = clamp(start.speed, 0.0, MAX_SPEED)
+        self.velocity_x = speed * math.cos(heading)
+        self.velocity_y = speed * math.sin(heading)
+        self.current = CarState(start.x, start.y, speed, heading, 0.0)
+        self.last_lap_progress = self.track.project_progress(start.x, start.y)
+        self.progress = 0.0
+        return self.current
+
+    def step(self, action: tuple[float, float, float, float, float]) -> tuple[CarState, float, bool]:
+        _steering, _throttle, _brake, heading_target, speed_target = action
+        speed = math.hypot(self.velocity_x, self.velocity_y)
+        velocity_heading = math.atan2(self.velocity_y, self.velocity_x) if speed > POLICY_EPSILON else self.current.heading
+        commanded_wheel_speed = clamp(speed_target, 0.0, MAX_SPEED)
+        alpha = wrap_to_pi(heading_target - velocity_heading)
+        slip_normal = -commanded_wheel_speed * math.sin(alpha)
+        slip_tangential = speed - commanded_wheel_speed * math.cos(alpha)
+        slip_speed = math.hypot(slip_tangential, slip_normal)
+        friction = RARS_FRICTION_COEFFICIENT * (1.0 - math.exp(-slip_speed / RARS_SLIP_SPEED_SCALE))
+        track_force = RARS_MASS * RARS_GRAVITY * friction
+        if slip_speed <= POLICY_EPSILON:
+            force_normal = 0.0
+            force_tangential = 0.0
+        else:
+            force_normal = -track_force * slip_normal / slip_speed
+            force_tangential = -track_force * slip_tangential / slip_speed
+        power = abs(commanded_wheel_speed) * (
+            force_tangential * math.cos(alpha) + force_normal * math.sin(alpha)
+        )
+        if power > RARS_MAX_POWER and power > POLICY_EPSILON:
+            scale = RARS_MAX_POWER / power
+            force_normal *= scale
+            force_tangential *= scale
+        drag = RARS_DRAG_COEFFICIENT * speed * speed
+        tangential_acceleration = (force_tangential - drag) / RARS_MASS
+        normal_acceleration = force_normal / RARS_MASS
+        ax = tangential_acceleration * math.cos(velocity_heading) - normal_acceleration * math.sin(velocity_heading)
+        ay = normal_acceleration * math.cos(velocity_heading) + tangential_acceleration * math.sin(velocity_heading)
+        next_velocity_x = self.velocity_x + ax * RARS_TIME_STEP_SECONDS
+        next_velocity_y = self.velocity_y + ay * RARS_TIME_STEP_SECONDS
+        next_speed = math.hypot(next_velocity_x, next_velocity_y)
+        if next_speed > MAX_SPEED:
+            speed_scale = MAX_SPEED / next_speed
+            next_velocity_x *= speed_scale
+            next_velocity_y *= speed_scale
+            next_speed = MAX_SPEED
+        next_x = self.current.x + 0.5 * (self.velocity_x + next_velocity_x) * RARS_TIME_STEP_SECONDS
+        next_y = self.current.y + 0.5 * (self.velocity_y + next_velocity_y) * RARS_TIME_STEP_SECONDS
+        self.velocity_x = next_velocity_x
+        self.velocity_y = next_velocity_y
+        next_heading = math.atan2(next_velocity_y, next_velocity_x) if next_speed > POLICY_EPSILON else velocity_heading
+        self.current = CarState(
+            next_x,
+            next_y,
+            next_speed,
+            wrap_to_pi(next_heading),
+            self.current.time + RARS_TIME_STEP_SECONDS,
+        )
         next_lap_progress = self.track.project_progress(next_x, next_y)
         self.progress += wrap_progress_delta(next_lap_progress - self.last_lap_progress, self.track.lap_length)
         self.last_lap_progress = next_lap_progress
@@ -181,15 +272,19 @@ def main() -> None:
     population_path = args.population or find_latest_population_file()
     row = read_population_row(population_path, args.rank)
     genes, gene_format = parse_genes(row["genes"], COUNT_OF_GENES)
+    backend_name = infer_backend_name(population_path)
     track = SimpleOvalTrack()
     starts = build_fixed_start_states(track)
     goal_distance = GOAL_LAPS * track.lap_length
     time_limit = row["extra"].get("T", 25.628906)
-    runs = [simulate_run(track, genes, start, time_limit, goal_distance, index) for index, start in enumerate(starts)]
+    runs = [
+        simulate_run(track, genes, start, time_limit, goal_distance, index, backend_name)
+        for index, start in enumerate(starts)
+    ]
     output_path = args.output or population_path.with_name(population_path.stem + "_trajectory.html")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        build_html(population_path, row, genes, gene_format, track, starts, runs, time_limit, goal_distance),
+        build_html(population_path, row, genes, gene_format, track, starts, runs, time_limit, goal_distance, backend_name),
         encoding="utf-8",
     )
     print(f"visualizer={output_path}")
@@ -197,6 +292,7 @@ def main() -> None:
     print(f"genes={len(genes)}")
     print(f"gene_format={gene_format}")
     print(f"runs={len(runs)}")
+    print(f"backend={backend_name}")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -287,6 +383,12 @@ def parse_genes(text: str, expected_count: int) -> tuple[list[float], str]:
 def parse_gene_tokens(tokens: list[str]) -> list[float]:
     return [float(token) for token in tokens]
 
+def infer_backend_name(path: Path) -> str:
+    return "rars" if "_rars_" in path.name else "kinematic"
+
+def time_step_seconds_for_backend(backend_name: str) -> float:
+    return RARS_TIME_STEP_SECONDS if backend_name == "rars" else TIME_STEP_SECONDS
+
 def build_fixed_start_states(track: SimpleOvalTrack) -> list[StartState]:
     specs = [(10.0, 0.0, 0.0), (50.0, 1.0, 0.12), (80.0, -0.8, -0.18), (140.0, 0.7, 0.10),
              (190.0, -0.6, -0.10), (225.0, 0.5, 0.16), (260.0, -0.4, -0.08)]
@@ -308,13 +410,22 @@ def simulate_run(
     time_limit: float,
     goal_distance: float,
     run_index: int,
+    backend_name: str,
 ) -> dict[str, object]:
-    backend = SimpleOvalBackend(track)
-    state = backend.reset(start)
+    backend = SimpleOvalRarsBackend(track) if backend_name == "rars" else SimpleOvalBackend(track)
+    initial_policy_state = CarState(start.x, start.y, start.speed, start.heading, 0.0)
+    initial_speed_target, _ = interpolate_policy(genes, initial_policy_state, track)
+    policy_start = StartState(
+        start.x,
+        start.y,
+        clamp(initial_speed_target, 0.0, MAX_SPEED),
+        start.heading,
+    )
+    state = backend.reset(policy_start)
     points = [point_dict(state, 0.0, True)]
     off_track = False
     while state.time < time_limit:
-        policy = interpolate_policy(genes, state)
+        policy = interpolate_policy(genes, state, track)
         action = adapt_action(policy, state)
         state, progress, off_track = backend.step(action)
         points.append(point_dict(state, progress, not off_track))
@@ -332,14 +443,21 @@ def simulate_run(
         "duration": state.time,
     }
 
-def interpolate_policy(genes: list[float], state: CarState) -> tuple[float, float]:
+def interpolate_policy(
+    genes: list[float],
+    state: CarState,
+    track: SimpleOvalTrack,
+) -> tuple[float, float]:
     weighted_speed = 0.0
     weighted_direction_x = 0.0
     weighted_direction_y = 0.0
     total_weight = 0.0
     for anchor_index in range(COUNT_OF_ANCHORS):
         offset = anchor_index * GENES_PER_ANCHOR
-        anchor_x, anchor_y, speed_target, direction_target = genes[offset:offset + GENES_PER_ANCHOR]
+        raw_x, raw_y, raw_speed, raw_direction = genes[offset:offset + GENES_PER_ANCHOR]
+        anchor_x, anchor_y, speed_target, direction_target = decode_anchor_values(
+            raw_x, raw_y, raw_speed, raw_direction, track
+        )
         d = math.hypot(state.x - anchor_x, state.y - anchor_y)
         weight = 1.0 / ((d + POLICY_EPSILON) ** INVERSE_DISTANCE_POWER)
         weighted_speed += weight * speed_target
@@ -350,13 +468,13 @@ def interpolate_policy(genes: list[float], state: CarState) -> tuple[float, floa
         raise ValueError("policy interpolation produced non-positive total weight")
     return weighted_speed / total_weight, math.atan2(weighted_direction_y, weighted_direction_x)
 
-def adapt_action(policy: tuple[float, float], state: CarState) -> tuple[float, float, float]:
+def adapt_action(policy: tuple[float, float], state: CarState) -> tuple[float, float, float, float, float]:
     speed_target, direction_target = policy
     steering = clamp(wrap_to_pi(direction_target - state.heading), -1.0, 1.0)
     speed_error = speed_target - state.speed
     throttle = clamp(0.2 * speed_error, 0.0, 1.0) if speed_error > 0.0 else 0.0
     brake = clamp(-0.2 * speed_error, 0.0, 1.0) if speed_error < 0.0 else 0.0
-    return steering, throttle, brake
+    return steering, throttle, brake, direction_target, speed_target
 
 def build_html(
     source: Path,
@@ -368,6 +486,7 @@ def build_html(
     runs: list[dict[str, object]],
     time_limit: float,
     goal_distance: float,
+    backend_name: str,
 ) -> str:
     data = {
         "source": str(source),
@@ -379,9 +498,10 @@ def build_html(
         "maxSpeed": MAX_SPEED,
         "simulation": {
             "countOfAnchors": COUNT_OF_ANCHORS,
+            "backend": backend_name,
             "genesPerAnchor": GENES_PER_ANCHOR,
             "goalLaps": GOAL_LAPS,
-            "timeStepSeconds": TIME_STEP_SECONDS,
+            "timeStepSeconds": time_step_seconds_for_backend(backend_name),
             "steeringRateGain": STEERING_RATE_GAIN,
             "throttleAcceleration": THROTTLE_ACCELERATION,
             "brakeAcceleration": BRAKE_ACCELERATION,
@@ -391,6 +511,17 @@ def build_html(
             "trackRadius": track.radius,
             "trackHalfStraight": track.half_straight,
             "trackHalfWidth": track.half_width,
+            "policyCenterX": track.center_x,
+            "policyCenterY": track.center_y,
+            "policyHalfRangeX": track.policy_half_range_x(),
+            "policyHalfRangeY": track.policy_half_range_y(),
+            "policySpeedScale": MAX_SPEED,
+            "rarsMass": RARS_MASS,
+            "rarsMaxPower": RARS_MAX_POWER,
+            "rarsFrictionCoefficient": RARS_FRICTION_COEFFICIENT,
+            "rarsSlipSpeedScale": RARS_SLIP_SPEED_SCALE,
+            "rarsDragCoefficient": RARS_DRAG_COEFFICIENT,
+            "rarsGravity": RARS_GRAVITY,
         },
         "track": build_track_points(track),
         "anchors": build_anchors(genes),
@@ -417,8 +548,11 @@ def build_html(
     <div class="controls">
       <button id="play">Reproducir</button>
       <button id="reset">Reiniciar</button>
-      <label>Archivo de población <input id="populationFile" type="file" accept=".csv,text/csv"></label>
-      <p class="hint" id="fileStatus">Puedes cargar un archivo vigente <code>*_0.csv</code>; se usará la fila con mayor fitness.</p>
+      <button id="selectPopulation" type="button">Seleccionar archivo</button>
+      <select id="serverPopulationSelect" class="fileSelect" style="display:none"></select>
+      <input id="populationFile" type="file" accept=".csv,text/csv">
+      <button id="reloadPopulation" type="button">Recargar archivo</button>
+      <p class="hint" id="fileStatus">En <code>localhost</code>, usa <strong>Seleccionar archivo</strong> para elegir un <code>*_0.csv</code> del servidor local; después <strong>Recargar archivo</strong> relee ese mismo archivo.</p>
       <label>Corrida <select id="runSelect"></select></label>
       <label>Velocidad <input id="speed" type="range" min="0.2" max="8" step="0.2" value="1.5"></label>
       <label><input id="showAnchors" type="checkbox" checked> Anclas y targets</label>
@@ -450,16 +584,47 @@ def build_track_points(track: SimpleOvalTrack) -> dict[str, list[dict[str, float
     return {"center": center, "left": left, "right": right}
 
 def build_anchors(genes: list[float]) -> list[dict[str, float]]:
+    track = SimpleOvalTrack()
     anchors = []
     for index in range(COUNT_OF_ANCHORS):
         offset = index * GENES_PER_ANCHOR
+        raw_x = genes[offset]
+        raw_y = genes[offset + 1]
+        raw_speed = genes[offset + 2]
+        raw_direction = genes[offset + 3]
+        x, y, speed, direction = decode_anchor_values(
+            raw_x,
+            raw_y,
+            raw_speed,
+            raw_direction,
+            track,
+        )
         anchors.append({
-            "x": genes[offset],
-            "y": genes[offset + 1],
-            "speed": genes[offset + 2],
-            "direction": genes[offset + 3],
+            "x": x,
+            "y": y,
+            "speed": speed,
+            "direction": direction,
+            "rawX": raw_x,
+            "rawY": raw_y,
+            "rawSpeed": raw_speed,
+            "rawDirection": raw_direction,
         })
     return anchors
+
+
+def decode_anchor_values(
+    raw_x: float,
+    raw_y: float,
+    raw_speed: float,
+    raw_direction: float,
+    track: SimpleOvalTrack,
+) -> tuple[float, float, float, float]:
+    return (
+        track.center_x + raw_x * track.policy_half_range_x(),
+        track.center_y + raw_y * track.policy_half_range_y(),
+        raw_speed * MAX_SPEED,
+        wrap_to_pi(raw_direction * math.pi),
+    )
 
 def point_dict(state: CarState, progress: float, inside: bool) -> dict[str, float | bool]:
     return {

@@ -53,6 +53,26 @@ public class SimpleCircularRacingBackendTest {
   }
 
   @Test
+  public void stepUsesHeadingTargetImmediatelyWhenProvided() {
+    SimpleCircularTrack track = buildTrack();
+    SimpleCircularRacingBackend backend = buildBackend( track );
+    backend.resetEpisode( new RacingStartState( 50.0,
+                                                0.0,
+                                                0.0,
+                                                0.0 ) );
+
+    RacingStepResult stepResult = backend.step( new RacingBackendAction(
+      0.0,
+      1.0,
+      0.0,
+      Math.PI / 2.0 ) );
+
+    assertEquals( Math.PI / 2.0,
+                  stepResult.getCarState().getHeading(),
+                  1.0e-12 );
+  }
+
+  @Test
   public void stepReportsOffTrackWhenCarExitsTheAnnulus() {
     SimpleCircularTrack track = buildTrack();
     SimpleCircularRacingBackend backend = buildBackend( track );

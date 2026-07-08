@@ -59,7 +59,7 @@ public class RankGA {
    * Max wall-clock time without improvement before stopping (milliseconds).
    */
   static final long DEFAULT_PATIENCE_MILLIS = 1 * 60L * 1000L;
-  private static final String SNAPSHOT_HEADER = "t, ni, rep, g, s, ph, d, rank, mutationIntensity, fitness, extra, genes, DateTime, mil";
+  private static final String SNAPSHOT_HEADER = "t, ni, rep, g, s, evaluations, evalsPerSecond, ph, d, rank, mutationIntensity, fitness, extra, genes, DateTime, mil";
   private static final String POPULATION_HEADER = "rank, mutationIntensity, fitness, extra, genes";
 
   public enum IncumbentUpdatePolicy {
@@ -71,12 +71,13 @@ public class RankGA {
         return STRICT;
       }
       switch( option.trim().toLowerCase( Locale.ROOT ) ) {
-        case "strict":
-          return STRICT;
-        case "neutral":
-          return NEUTRAL;
-        default:
-          throw new IllegalArgumentException(
+        case "strict" -> {
+            return STRICT;
+            }
+        case "neutral" -> {
+            return NEUTRAL;
+            }
+        default -> throw new IllegalArgumentException(
             "Unknown incumbent update policy '" + option
             + "'. Allowed: strict, neutral" );
       }
@@ -93,12 +94,13 @@ public class RankGA {
         return FITNESS;
       }
       switch( option.trim().toLowerCase( Locale.ROOT ) ) {
-        case "fitness":
-          return FITNESS;
-        case "movement":
-          return MOVEMENT;
-        default:
-          throw new IllegalArgumentException(
+        case "fitness" -> {
+            return FITNESS;
+            }
+        case "movement" -> {
+            return MOVEMENT;
+            }
+        default -> throw new IllegalArgumentException(
             "Unknown patience reset policy '" + option
             + "'. Allowed: fitness, movement" );
       }
@@ -106,40 +108,40 @@ public class RankGA {
 
   }
 
-  // --- GA state (static for a simple single-run driver)
+  // --- GA state (owned by one driver instance)
   // ---------------------------------------
   /**
    * Current population instance for the active repetition.
    */
-  static protected Population population;
+  protected Population population;
 
   /**
    * Timestamps for run start and periodic progress.
    */
-  static protected Date startTime;
-  static protected final Date runTime = new Date(); // elapsed since start
-  static protected final Date tryTime = new Date(); // elapsed since last improvement
-  static protected Date notImproved = new Date(); // last time an improvement was recorded
-  static protected Date lastDisplay = new Date(); // last time we printed a progress line
-  static protected Date now; // current timestamp snapshot
+  protected Date startTime;
+  protected final Date runTime = new Date(); // elapsed since start
+  protected final Date tryTime = new Date(); // elapsed since last improvement
+  protected Date notImproved = new Date(); // last time an improvement was recorded
+  protected Date lastDisplay = new Date(); // last time we printed a progress line
 
   /**
    * Best-so-far individual (deep copy) used to detect genuine improvements and log snapshots.
    */
-  static protected Individual lastBest;
+  protected Individual lastBest;
 
   /**
    * Repetition counter (outer loop to assess robustness).
    */
-  static protected int repetition;
+  protected int repetition;
 
   /**
    * Generation counter (increments after each operator phase).
    */
-  static protected long generation;
-  static protected long patienceMillis = DEFAULT_PATIENCE_MILLIS;
-  static protected IncumbentUpdatePolicy incumbentUpdatePolicy = IncumbentUpdatePolicy.STRICT;
-  static protected PatienceResetPolicy patienceResetPolicy = PatienceResetPolicy.FITNESS;
+  protected long generation;
+  protected long currentEvaluationCount;
+  protected long patienceMillis = DEFAULT_PATIENCE_MILLIS;
+  protected IncumbentUpdatePolicy incumbentUpdatePolicy = IncumbentUpdatePolicy.STRICT;
+  protected PatienceResetPolicy patienceResetPolicy = PatienceResetPolicy.FITNESS;
 
   // --------------------------------------------------------------------------------------------
   // Entry point
@@ -255,13 +257,32 @@ public class RankGA {
                           long patienceMillis,
                           IncumbentUpdatePolicy selectedIncumbentUpdatePolicy,
                           PatienceResetPolicy selectedPatienceResetPolicy ) {
+    RankGA driver = new RankGA();
+    driver.executeRun( problem,
+                       populationSize,
+                       repetitions,
+                       seed,
+                       problemParameters,
+                       patienceMillis,
+                       selectedIncumbentUpdatePolicy,
+                       selectedPatienceResetPolicy );
+  }
+
+  private void executeRun( Problem problem,
+                           int populationSize,
+                           int repetitions,
+                           long seed,
+                           String problemParameters,
+                           long patienceMillis,
+                           IncumbentUpdatePolicy selectedIncumbentUpdatePolicy,
+                           PatienceResetPolicy selectedPatienceResetPolicy ) {
     if( patienceMillis <= 0L ) {
       throw new IllegalArgumentException(
         "patienceMillis must be positive" );
     }
-    RankGA.patienceMillis = patienceMillis;
-    RankGA.incumbentUpdatePolicy = selectedIncumbentUpdatePolicy;
-    RankGA.patienceResetPolicy = selectedPatienceResetPolicy;
+    this.patienceMillis = patienceMillis;
+    incumbentUpdatePolicy = selectedIncumbentUpdatePolicy;
+    patienceResetPolicy = selectedPatienceResetPolicy;
 
     // Unique name for logs (problem name + seed + timestamp).
     long runId = System.currentTimeMillis();
@@ -312,16 +333,17 @@ public class RankGA {
       long evaluations = initializePopulation( problem,
                                                populationSize,
                                                repetitionRandom );
+      currentEvaluationCount = evaluations;
       lastBest = problem.getNewIndividual( population.getFittest() ); // deep copy of current best
       generation = 1;
       notImproved = new Date();
       lastDisplay = new Date();
-      now = new Date();
+      Date now = new Date();
 
       // --- Header for console logging
       // ---------------------------------------------------------
       System.out.println(
-        "t\tni\trep\tg\ts\tph\td\trank\tp\tfitness\textra\tgenes\tDateTime\tmil" );
+        "t\tni\trep\tg\ts\tevaluations\tevalsPerSecond\tph\td\trank\tp\tfitness\textra\tgenes\tDateTime\tmil" );
 
       // Initial snapshot “S” (Start).
       report( "S",
@@ -340,8 +362,9 @@ public class RankGA {
         displayProgress();
 
         // Allow only adaptive problems to adjust internal parameters.
-        if( problem instanceof AdaptiveProblem ) {
-          ( (AdaptiveProblem) problem ).adapt( population.getFittest() );
+        if( problem instanceof AdaptiveProblem adaptiveProblem ) {
+              adaptiveProblem.adapt( population.getFittest() );
+              population.recalculateBeta();
         }
 
       }
@@ -393,9 +416,9 @@ public class RankGA {
    *
    * @return number of fitness evaluations performed to initialize the population
    */
-  private static long initializePopulation( Problem problem,
-                                            int populationSize,
-                                            Random randomizer ) {
+  private long initializePopulation( Problem problem,
+                                     int populationSize,
+                                     Random randomizer ) {
     population = new Population( populationSize,
                                  problem,
                                  true, // randomize initial genomes
@@ -413,8 +436,8 @@ public class RankGA {
    *
    * @return number of fitness evaluations performed in this epoch
    */
-  private static long evolvePopulation( String problemRunName,
-                                        Problem problem ) {
+  private long evolvePopulation( String problemRunName,
+                                 Problem problem ) {
     long evaluations = 0L;
 
     // --- Selection (rank-based cloning)
@@ -426,6 +449,7 @@ public class RankGA {
     population.recombine();
     population.evaluate();
     evaluations += population.getSize();
+    currentEvaluationCount += population.getSize();
     checkImprovement( "R",
                       problemRunName,
                       problem ); // “R” = post-Recombination snapshot if better
@@ -435,6 +459,7 @@ public class RankGA {
     population.mutate();
     population.evaluate();
     evaluations += population.getSize();
+    currentEvaluationCount += population.getSize();
     checkImprovement( "M",
                       problemRunName,
                       problem ); // “M” = post-Mutation snapshot if better
@@ -607,9 +632,9 @@ public class RankGA {
    * @param problemRunName log file prefix
    * @param problem        owning problem for deep-copy factory
    */
-  private static void checkImprovement( String phase,
-                                        String problemRunName,
-                                        Problem problem ) {
+  private void checkImprovement( String phase,
+                                 String problemRunName,
+                                 Problem problem ) {
     Individual candidate = population.getFittest();
     boolean improvedFitness = hasStrictFitnessImprovement( lastBest,
                                                            candidate );
@@ -645,12 +670,13 @@ public class RankGA {
       return false;
     }
     switch( policy ) {
-      case STRICT:
-        return candidate.getFitness() > incumbent.getFitness();
-      case NEUTRAL:
-        return candidate.getFitness() >= incumbent.getFitness();
-      default:
-        throw new IllegalStateException( "Unsupported incumbent policy: "
+      case STRICT -> {
+          return candidate.getFitness() > incumbent.getFitness();
+          }
+      case NEUTRAL -> {
+          return candidate.getFitness() >= incumbent.getFitness();
+          }
+      default -> throw new IllegalStateException( "Unsupported incumbent policy: "
                                          + policy );
     }
   }
@@ -659,12 +685,13 @@ public class RankGA {
                                       boolean movedIncumbent,
                                       PatienceResetPolicy policy ) {
     switch( policy ) {
-      case FITNESS:
-        return improvedFitness;
-      case MOVEMENT:
-        return movedIncumbent;
-      default:
-        throw new IllegalStateException( "Unsupported patience policy: "
+      case FITNESS -> {
+          return improvedFitness;
+          }
+      case MOVEMENT -> {
+          return movedIncumbent;
+          }
+      default -> throw new IllegalStateException( "Unsupported patience policy: "
                                          + policy );
     }
   }
@@ -679,9 +706,10 @@ public class RankGA {
    * <li>Useful for monitoring without overwhelming the console.</li>
    * </ul>
    */
-  private static void displayProgress() {
+  private void displayProgress() {
     long progressInterval = Math.max( 1L,
                                       patienceMillis / 10L );
+      Date now = new Date();
     if( ( now.getTime() - lastDisplay.getTime() ) > progressInterval ) {
       lastDisplay = new Date();
       runTime.setTime( now.getTime() - startTime.getTime() ); // total elapsed
@@ -712,25 +740,35 @@ public class RankGA {
    * @param phase       phase tag: "S" (Start), "R" (after recombination), "M" (after mutation), "L" (Last)
    * @param problemName file prefix (problem name + timestamp)
    */
-  static protected void report( String phase,
-                                String problemName ) {
+  protected void report( String phase,
+                         String problemName ) {
     Individual best = population.getFittest();
     double distance = best.distanceSqTo( lastBest ); // diversity relative to previous best copy
     Date now = new Date();
+    long elapsedMillis = now.getTime() - startTime.getTime();
+    double evaluationsPerSecond = elapsedMillis > 0L
+                                  ? currentEvaluationCount * 1000.0
+                                    / elapsedMillis
+                                  : 0.0;
 
     String reportString = String.format(
-           "%s, %s, %d, %d, %9.7f, %s, %.2e, %s, %s, %s, %d\n",
-           convertMillisToTimeFormat( now.getTime() - startTime.getTime() ), // t (elapsed since start)
+           Locale.ROOT,
+           "%s, %s, %d, %d, %9.7f, %d, %.6f, %s, %.2e, %s, %s, %s, %d\n",
+           convertMillisToTimeFormat( elapsedMillis ), // t (elapsed since start)
            convertMillisToTimeFormat( now.getTime() - notImproved.getTime() ), // ni (since last improvement)
            repetition, // rep
            generation, // g
-           (float) generation / ( now.getTime() - startTime.getTime() ), // s = gen / ms
+           elapsedMillis > 0L
+           ? (float) generation / elapsedMillis
+           : 0.0f, // s = gen / ms
+           currentEvaluationCount, // evaluations accumulated up to this incumbent snapshot
+           evaluationsPerSecond, // evaluation throughput accumulated up to this incumbent snapshot
            phase, // ph
            distance, // d = squared distance
            best, // rank, last mut intensity, best fitness, extra
            best.genomeStr(), // genes (compact)
            now, // DateTime
-           ( now.getTime() - startTime.getTime() ) // mil (elapsed ms)
+           elapsedMillis // mil (elapsed ms)
          );
 
     System.out.print( "\r" + reportString );
@@ -773,7 +811,7 @@ public class RankGA {
    * and best-so-far snapshots remain compact.
    * </p>
    */
-  private static void logPopulation( String problemName ) {
+  private void logPopulation( String problemName ) {
     Path populationFile = Path.of( problemName + "_" + repetition + ".csv" );
     Path temporaryPopulationFile = Path.of(
       problemName + "_" + repetition + ".csv.tmp" );

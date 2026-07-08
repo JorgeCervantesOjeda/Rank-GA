@@ -99,9 +99,13 @@ public final class SimpleCircularRacingBackend
 
     double nextSpeed = computeNextSpeed( backendAction );
     double averageSpeed = 0.5 * ( currentState.getSpeed() + nextSpeed );
-    double nextHeading = wrapToPi(
-      currentState.getHeading()
-      + steeringRateGain * backendAction.getSteeringCommand() * timeStepSeconds );
+    double nextHeading = backendAction.hasHeadingTarget()
+                         ? wrapToPi( backendAction.getHeadingTarget() )
+                         : wrapToPi(
+                           currentState.getHeading()
+                           + steeringRateGain
+                             * backendAction.getSteeringCommand()
+                             * timeStepSeconds );
     double nextX = currentState.getX()
                    + averageSpeed * Math.cos( nextHeading ) * timeStepSeconds;
     double nextY = currentState.getY()
@@ -142,6 +146,31 @@ public final class SimpleCircularRacingBackend
                                 double y ) {
     return track.isInsideTrack( x,
                                 y );
+  }
+
+  @Override
+  public double getPolicyCenterX() {
+    return track.getCenterX();
+  }
+
+  @Override
+  public double getPolicyCenterY() {
+    return track.getCenterY();
+  }
+
+  @Override
+  public double getPolicyHalfRangeX() {
+    return track.getOuterRadius();
+  }
+
+  @Override
+  public double getPolicyHalfRangeY() {
+    return track.getOuterRadius();
+  }
+
+  @Override
+  public double getPolicySpeedScale() {
+    return maxSpeed;
   }
 
   private double computeNextSpeed( RacingBackendAction backendAction ) {

@@ -6,6 +6,7 @@ import Problems.ProblemRacing;
 import Problems.RacingStartState;
 import Problems.RacingStartStateProvider;
 import Problems.SimpleOvalRacingBackend;
+import Problems.SimpleOvalRarsRacingBackend;
 import Problems.SimpleOvalTrack;
 import Problems.SimpleTargetRacingActionAdapter;
 
@@ -23,8 +24,13 @@ public final class RunRacingOvalExperiment {
   private static final double DEFAULT_GOAL_LAPS = 0.0;
   private static final double DEFAULT_GOAL_SPEED_REWARD_WEIGHT = 0.0;
   private static final boolean DEFAULT_SHOULD_STOP_AT_GOAL = true;
-  private static final double LOCAL_SEARCH_INTENSITY = 0.01;
-  private static final double TRACK_DIAGONAL_SEARCH_SCALE_DIVISOR = 10.0;
+  private static final double DEFAULT_LOCAL_SEARCH_INTENSITY = 0.01;
+  private static final double DEFAULT_GLOBAL_SEARCH_INTENSITY = 0.1;
+  private static final String BACKEND_KINEMATIC = "kinematic";
+  private static final String BACKEND_RARS = "rars";
+  private static final String FITNESS_MODE_ROBUST = "robust";
+  private static final String FITNESS_MODE_DISTANCE_ONLY = "distance-only";
+  private static final String FITNESS_MODE_TARGET_SPEED = "target-speed";
 
   private RunRacingOvalExperiment() {
   }
@@ -42,6 +48,9 @@ public final class RunRacingOvalExperiment {
     double goalSpeedRewardWeight = DEFAULT_GOAL_SPEED_REWARD_WEIGHT;
     boolean shouldStopAtGoal = DEFAULT_SHOULD_STOP_AT_GOAL;
     double globalSearchIntensity = Double.NaN;
+    double localSearchIntensity = DEFAULT_LOCAL_SEARCH_INTENSITY;
+    String fitnessMode = FITNESS_MODE_ROBUST;
+    String backendName = BACKEND_KINEMATIC;
 
     for( String arg : args ) {
       if( arg.startsWith( "--seed=" ) ) {
@@ -77,6 +86,13 @@ public final class RunRacingOvalExperiment {
       } else if( arg.startsWith( "--global-search-intensity=" ) ) {
         globalSearchIntensity = Double.parseDouble(
           arg.substring( "--global-search-intensity=".length() ) );
+      } else if( arg.startsWith( "--local-search-intensity=" ) ) {
+        localSearchIntensity = Double.parseDouble(
+          arg.substring( "--local-search-intensity=".length() ) );
+      } else if( arg.startsWith( "--fitness-mode=" ) ) {
+        fitnessMode = arg.substring( "--fitness-mode=".length() );
+      } else if( arg.startsWith( "--backend=" ) ) {
+        backendName = arg.substring( "--backend=".length() );
       } else {
         throw new IllegalArgumentException( "Unknown argument: " + arg );
       }
@@ -86,12 +102,20 @@ public final class RunRacingOvalExperiment {
                          goalLaps );
     validateNonNegative( "goalSpeedRewardWeight",
                          goalSpeedRewardWeight );
+    validateFitnessMode( fitnessMode );
+    validateBackendName( backendName );
     SimpleOvalTrack track = buildTrack();
     if( Double.isNaN( globalSearchIntensity ) ) {
-      globalSearchIntensity = computeTrackScaledGlobalSearchIntensity( track );
+      globalSearchIntensity = computeNormalizedGlobalSearchIntensity();
     }
     validatePositive( "globalSearchIntensity",
                       globalSearchIntensity );
+    validatePositive( "localSearchIntensity",
+                      localSearchIntensity );
+    if( globalSearchIntensity <= localSearchIntensity ) {
+      throw new IllegalArgumentException(
+        "globalSearchIntensity must be greater than localSearchIntensity" );
+    }
     double goalDistanceMeters = computeGoalDistanceMeters( track,
                                                            goalLaps );
     double rankGoalFitness = shouldStopAtGoal
@@ -106,12 +130,16 @@ public final class RunRacingOvalExperiment {
                                           goalDistanceMeters,
                                           rankGoalFitness,
                                           goalSpeedRewardWeight,
-                                          globalSearchIntensity );
+                                          globalSearchIntensity,
+                                          localSearchIntensity,
+                                          fitnessMode,
+                                          backendName );
     RankGA.run( problem,
                 countOfIndividuals,
                 repetitions,
                 seed,
                 "mode=oval-full-output;anchors=" + countOfAnchors
+                + ";genotype=normalized-policy"
                 + ";initialT=" + initialTimeLimitSeconds
                 + ";timeGrowthFactor=" + timeLimitGrowthFactor
                 + ";timePatienceGenerations=" + timeLimitPatienceGenerations
@@ -121,10 +149,32 @@ public final class RunRacingOvalExperiment {
                 + ";lapLength=" + track.getLapLength()
                 + ";goalDistanceMeters=" + goalDistanceMeters
                 + ";rankGoalFitness=" + rankGoalFitness
-                + ";globalSearchIntensity=" + globalSearchIntensity,
+                + ";globalSearchIntensity=" + globalSearchIntensity
+                + ";localSearchIntensity=" + localSearchIntensity
+                + ";fitnessMode=" + fitnessMode
+                + ";backend=" + backendName
+                + ";racingEvaluator=" + describeRacingEvaluator(
+                  backendName )
+                + ";racingPopulationParallel="
+                + Boolean.getBoolean( "rankga.racing.populationParallel" ),
                 patienceMillis,
                 RankGA.IncumbentUpdatePolicy.STRICT,
                 RankGA.PatienceResetPolicy.FITNESS );
+  }
+
+  private static String describeRacingEvaluator( String backendName ) {
+    if( !BACKEND_KINEMATIC.equals( backendName ) ) {
+      return "mutable";
+    }
+    if( "false".equalsIgnoreCase( System.getProperty(
+                                  "rankga.racing.simpleOvalPure",
+                                  "true" ) ) ) {
+      return "mutable";
+    }
+    if( Boolean.getBoolean( "rankga.racing.populationParallel" ) ) {
+      return "cpu_population_parallel";
+    }
+    return "cpu_serial";
   }
 
   private static ProblemRacing buildProblem( SimpleOvalTrack track,
@@ -135,9 +185,13 @@ public final class RunRacingOvalExperiment {
                                              double goalDistanceMeters,
                                              double rankGoalFitness,
                                              double goalSpeedRewardWeight,
-                                             double globalSearchIntensity ) {
-    SimpleOvalRacingBackend backend = buildBackend( track );
-    return new ProblemRacing(
+                                             double globalSearchIntensity,
+                                             double localSearchIntensity,
+                                             String fitnessMode,
+                                             String backendName ) {
+    Problems.RacingBackend backend = buildBackend( track,
+                                                   backendName );
+    ProblemRacing problem = new ProblemRacing(
       backend,
       new SimpleTargetRacingActionAdapter(),
       new OvalFixedStartStateProvider( track ),
@@ -149,23 +203,20 @@ public final class RunRacingOvalExperiment {
       1.0,
       goalSpeedRewardWeight,
       2.0,
-      LOCAL_SEARCH_INTENSITY,
+      localSearchIntensity,
       globalSearchIntensity,
       goalDistanceMeters,
       rankGoalFitness );
+    if( FITNESS_MODE_DISTANCE_ONLY.equals( fitnessMode ) ) {
+      problem.useDistanceOnlyFitness();
+    } else if( FITNESS_MODE_TARGET_SPEED.equals( fitnessMode ) ) {
+      problem.useTargetDistanceSpeedFitness();
+    }
+    return problem;
   }
 
-  static double computeTrackScaledGlobalSearchIntensity( SimpleOvalTrack track ) {
-    if( track == null ) {
-      throw new IllegalArgumentException( "track must not be null" );
-    }
-    double widthMeters = 2.0 * ( track.getHalfLengthOfStraight()
-                                + track.getRadiusOfTurns()
-                                + track.getHalfWidth() );
-    double heightMeters = 2.0 * ( track.getRadiusOfTurns()
-                                 + track.getHalfWidth() );
-    return Math.hypot( widthMeters,
-                       heightMeters ) / TRACK_DIAGONAL_SEARCH_SCALE_DIVISOR;
+  static double computeNormalizedGlobalSearchIntensity() {
+    return DEFAULT_GLOBAL_SEARCH_INTENSITY;
   }
 
   private static SimpleOvalTrack buildTrack() {
@@ -177,7 +228,18 @@ public final class RunRacingOvalExperiment {
                                 5.0 );
   }
 
-  private static SimpleOvalRacingBackend buildBackend( SimpleOvalTrack track ) {
+  private static Problems.RacingBackend buildBackend( SimpleOvalTrack track,
+                                                      String backendName ) {
+    if( BACKEND_RARS.equals( backendName ) ) {
+      return new SimpleOvalRarsRacingBackend( track,
+                                              0.05,
+                                              1100.0,
+                                              135000.0,
+                                              1.4,
+                                              2.0,
+                                              0.45,
+                                              40.0 );
+    }
     return new SimpleOvalRacingBackend( track,
                                         0.2,
                                         1.0,
@@ -204,6 +266,26 @@ public final class RunRacingOvalExperiment {
     }
     throw new IllegalArgumentException(
       "Boolean options must be true or false: " + value );
+  }
+
+  private static void validateFitnessMode( String fitnessMode ) {
+    if( FITNESS_MODE_ROBUST.equals( fitnessMode )
+        || FITNESS_MODE_DISTANCE_ONLY.equals( fitnessMode )
+        || FITNESS_MODE_TARGET_SPEED.equals( fitnessMode ) ) {
+      return;
+    }
+    throw new IllegalArgumentException(
+      "fitness-mode must be robust, distance-only, or target-speed: "
+      + fitnessMode );
+  }
+
+  private static void validateBackendName( String backendName ) {
+    if( BACKEND_KINEMATIC.equals( backendName )
+        || BACKEND_RARS.equals( backendName ) ) {
+      return;
+    }
+    throw new IllegalArgumentException(
+      "backend must be kinematic or rars: " + backendName );
   }
 
   private static void validateNonNegative( String label,

@@ -1,85 +1,71 @@
-// C:/Users/usuario/ownCloud2/RankGA/src/Problems/SimpleOvalRacingBackend.java
-// Deterministic kinematic racing backend on an oval track with two straights and two turns.
+// C:/Users/usuario/ownCloud2/RankGA/src/Problems/SimpleOvalRarsRacingBackend.java
+// RARS-inspired point-mass oval backend driven by commanded wheel direction and speed.
 package Problems;
 
 import java.util.Random;
 
-public final class SimpleOvalRacingBackend
+public final class SimpleOvalRarsRacingBackend
   implements RacingBackend {
+
+  private static final double GRAVITY_METERS_PER_SECOND_SQUARED = 9.81;
+  private static final double EPSILON = 1.0e-9;
 
   private final SimpleOvalTrack track;
   private final double timeStepSeconds;
-  private final double steeringRateGain;
-  private final double throttleAcceleration;
-  private final double brakeAcceleration;
+  private final double massKilograms;
+  private final double maxPowerWatts;
+  private final double maxFrictionCoefficient;
+  private final double slipSpeedScaleMetersPerSecond;
   private final double dragCoefficient;
   private final double maxSpeed;
   private RacingCarState currentState;
+  private double velocityX;
+  private double velocityY;
   private double lastProgressMetersOnLap;
   private double progressMeters;
 
-  public SimpleOvalRacingBackend( SimpleOvalTrack track,
-                                  double timeStepSeconds,
-                                  double steeringRateGain,
-                                  double throttleAcceleration,
-                                  double brakeAcceleration,
-                                  double dragCoefficient,
-                                  double maxSpeed ) {
+  public SimpleOvalRarsRacingBackend( SimpleOvalTrack track,
+                                      double timeStepSeconds,
+                                      double massKilograms,
+                                      double maxPowerWatts,
+                                      double maxFrictionCoefficient,
+                                      double slipSpeedScaleMetersPerSecond,
+                                      double dragCoefficient,
+                                      double maxSpeed ) {
     if( track == null ) {
       throw new IllegalArgumentException( "track must not be null" );
     }
     validatePositive( "timeStepSeconds",
                       timeStepSeconds );
-    validatePositive( "steeringRateGain",
-                      steeringRateGain );
-    validatePositive( "throttleAcceleration",
-                      throttleAcceleration );
-    validatePositive( "brakeAcceleration",
-                      brakeAcceleration );
+    validatePositive( "massKilograms",
+                      massKilograms );
+    validatePositive( "maxPowerWatts",
+                      maxPowerWatts );
+    validatePositive( "maxFrictionCoefficient",
+                      maxFrictionCoefficient );
+    validatePositive( "slipSpeedScaleMetersPerSecond",
+                      slipSpeedScaleMetersPerSecond );
     validateNonNegative( "dragCoefficient",
                          dragCoefficient );
     validatePositive( "maxSpeed",
                       maxSpeed );
     this.track = track;
     this.timeStepSeconds = timeStepSeconds;
-    this.steeringRateGain = steeringRateGain;
-    this.throttleAcceleration = throttleAcceleration;
-    this.brakeAcceleration = brakeAcceleration;
+    this.massKilograms = massKilograms;
+    this.maxPowerWatts = maxPowerWatts;
+    this.maxFrictionCoefficient = maxFrictionCoefficient;
+    this.slipSpeedScaleMetersPerSecond = slipSpeedScaleMetersPerSecond;
     this.dragCoefficient = dragCoefficient;
     this.maxSpeed = maxSpeed;
   }
 
   @Override
   public String getTrackName() {
-    return track.getTrackName();
+    return track.getTrackName() + "_rars";
   }
 
   public SimpleOvalTrack getTrack() {
     return track;
-  }
-
-  public double getTimeStepSeconds() {
-    return timeStepSeconds;
-  }
-
-  public double getSteeringRateGain() {
-    return steeringRateGain;
-  }
-
-  public double getThrottleAcceleration() {
-    return throttleAcceleration;
-  }
-
-  public double getBrakeAcceleration() {
-    return brakeAcceleration;
-  }
-
-  public double getDragCoefficient() {
-    return dragCoefficient;
-  }
-
-  public double getMaxSpeed() {
-    return maxSpeed;
   }
 
   @Override
@@ -110,10 +96,16 @@ public final class SimpleOvalRacingBackend
                               startState.getY() ) ) {
       throw new IllegalArgumentException( "startState must lie inside the track" );
     }
+    double startHeading = wrapToPi( startState.getHeading() );
+    double startSpeed = clamp( startState.getSpeed(),
+                               0.0,
+                               maxSpeed );
+    velocityX = startSpeed * Math.cos( startHeading );
+    velocityY = startSpeed * Math.sin( startHeading );
     currentState = new RacingCarState( startState.getX(),
                                        startState.getY(),
-                                       startState.getSpeed(),
-                                       wrapToPi( startState.getHeading() ),
+                                       startSpeed,
+                                       startHeading,
                                        0.0 );
     lastProgressMetersOnLap = track.projectProgressMeters( currentState.getX(),
                                                            currentState.getY() );
@@ -126,25 +118,79 @@ public final class SimpleOvalRacingBackend
     ensureInitialized();
     validateAction( backendAction );
 
-    double nextSpeed = computeNextSpeed( backendAction );
-    double averageSpeed = 0.5 * ( currentState.getSpeed() + nextSpeed );
-    double nextHeading = backendAction.hasHeadingTarget()
-                         ? wrapToPi( backendAction.getHeadingTarget() )
-                         : wrapToPi(
-                           currentState.getHeading()
-                           + steeringRateGain
-                             * backendAction.getSteeringCommand()
-                             * timeStepSeconds );
+    double speed = vecMag( velocityX,
+                           velocityY );
+    double velocityHeading = speed > EPSILON
+                             ? Math.atan2( velocityY,
+                                           velocityX )
+                             : currentState.getHeading();
+    double wheelDirection = wrapToPi( backendAction.getHeadingTarget() );
+    double commandedWheelSpeed = clamp( backendAction.getSpeedTarget(),
+                                        0.0,
+                                        maxSpeed );
+    double alpha = wrapToPi( wheelDirection - velocityHeading );
+    double sine = Math.sin( alpha );
+    double cosine = Math.cos( alpha );
+    double slipNormal = -commandedWheelSpeed * sine;
+    double slipTangential = speed - commandedWheelSpeed * cosine;
+    double slipSpeed = vecMag( slipTangential,
+                               slipNormal );
+    double trackForce = massKilograms
+                        * GRAVITY_METERS_PER_SECOND_SQUARED
+                        * computeFrictionCoefficient( slipSpeed );
+    double forceNormal;
+    double forceTangential;
+    if( slipSpeed <= EPSILON ) {
+      forceNormal = 0.0;
+      forceTangential = 0.0;
+    } else {
+      forceNormal = -trackForce * slipNormal / slipSpeed;
+      forceTangential = -trackForce * slipTangential / slipSpeed;
+    }
+
+    double powerWatts = Math.abs( commandedWheelSpeed )
+                        * ( forceTangential * cosine + forceNormal * sine );
+    if( powerWatts > maxPowerWatts && powerWatts > EPSILON ) {
+      double powerScale = maxPowerWatts / powerWatts;
+      forceNormal *= powerScale;
+      forceTangential *= powerScale;
+    }
+
+    double dragForce = dragCoefficient * speed * speed;
+    double tangentialAcceleration = ( forceTangential - dragForce )
+                                    / massKilograms;
+    double normalAcceleration = forceNormal / massKilograms;
+    double accelerationX = tangentialAcceleration * Math.cos( velocityHeading )
+                           - normalAcceleration * Math.sin( velocityHeading );
+    double accelerationY = normalAcceleration * Math.cos( velocityHeading )
+                           + tangentialAcceleration * Math.sin( velocityHeading );
+
+    double nextVelocityX = velocityX + accelerationX * timeStepSeconds;
+    double nextVelocityY = velocityY + accelerationY * timeStepSeconds;
+    double nextSpeed = vecMag( nextVelocityX,
+                               nextVelocityY );
+    if( nextSpeed > maxSpeed ) {
+      double speedScale = maxSpeed / nextSpeed;
+      nextVelocityX *= speedScale;
+      nextVelocityY *= speedScale;
+      nextSpeed = maxSpeed;
+    }
     double nextX = currentState.getX()
-                   + averageSpeed * Math.cos( nextHeading ) * timeStepSeconds;
+                   + 0.5 * ( velocityX + nextVelocityX ) * timeStepSeconds;
     double nextY = currentState.getY()
-                   + averageSpeed * Math.sin( nextHeading ) * timeStepSeconds;
-    double nextTimeSeconds = currentState.getTimeSeconds() + timeStepSeconds;
+                   + 0.5 * ( velocityY + nextVelocityY ) * timeStepSeconds;
+    velocityX = nextVelocityX;
+    velocityY = nextVelocityY;
+    double nextHeading = nextSpeed > EPSILON
+                         ? Math.atan2( velocityY,
+                                       velocityX )
+                         : velocityHeading;
     currentState = new RacingCarState( nextX,
                                        nextY,
                                        nextSpeed,
-                                       nextHeading,
-                                       nextTimeSeconds );
+                                       wrapToPi( nextHeading ),
+                                       currentState.getTimeSeconds()
+                                       + timeStepSeconds );
 
     double nextProgressMetersOnLap = track.projectProgressMeters( nextX,
                                                                   nextY );
@@ -205,18 +251,9 @@ public final class SimpleOvalRacingBackend
     return maxSpeed;
   }
 
-  private double computeNextSpeed( RacingBackendAction backendAction ) {
-    double acceleration = throttleAcceleration * backendAction.getThrottleCommand()
-                          - brakeAcceleration * backendAction.getBrakeCommand()
-                          - dragCoefficient * currentState.getSpeed();
-    double rawSpeed = currentState.getSpeed() + acceleration * timeStepSeconds;
-    if( rawSpeed < 0.0 ) {
-      return 0.0;
-    }
-    if( rawSpeed > maxSpeed ) {
-      return maxSpeed;
-    }
-    return rawSpeed;
+  private double computeFrictionCoefficient( double slipSpeed ) {
+    return maxFrictionCoefficient
+           * ( 1.0 - Math.exp( -slipSpeed / slipSpeedScaleMetersPerSecond ) );
   }
 
   private static double wrapProgressDelta( double deltaProgressMeters,
@@ -240,15 +277,29 @@ public final class SimpleOvalRacingBackend
     if( backendAction == null ) {
       throw new IllegalArgumentException( "backendAction must not be null" );
     }
-    if( Math.abs( backendAction.getSteeringCommand() ) > 1.0 ) {
-      throw new IllegalArgumentException( "steeringCommand must lie in [-1, 1]" );
+    if( !backendAction.hasHeadingTarget() ) {
+      throw new IllegalArgumentException( "RARS backend requires headingTarget" );
     }
-    if( backendAction.getThrottleCommand() > 1.0 ) {
-      throw new IllegalArgumentException( "throttleCommand must lie in [0, 1]" );
+    if( !backendAction.hasSpeedTarget() ) {
+      throw new IllegalArgumentException( "RARS backend requires speedTarget" );
     }
-    if( backendAction.getBrakeCommand() > 1.0 ) {
-      throw new IllegalArgumentException( "brakeCommand must lie in [0, 1]" );
+  }
+
+  private static double vecMag( double x,
+                                double y ) {
+    return Math.sqrt( x * x + y * y );
+  }
+
+  private static double clamp( double value,
+                               double minValue,
+                               double maxValue ) {
+    if( value < minValue ) {
+      return minValue;
     }
+    if( value > maxValue ) {
+      return maxValue;
+    }
+    return value;
   }
 
   private static double wrapToPi( double angle ) {

@@ -12,7 +12,7 @@ main{display:grid;grid-template-columns:390px 1fr;gap:18px;min-height:100vh;padd
 h1{font-size:28px;line-height:1.05;margin:0 0 12px}.warning{border-left:4px solid var(--accent);padding-left:10px;color:#59311f}.stats{display:grid;gap:6px;margin:14px 0}
 .stat{display:flex;justify-content:space-between;border-bottom:1px dotted #b3aa98;padding:4px 0}.controls{display:grid;gap:10px;margin-top:16px}
 button,select,input{font:inherit}button{border:0;border-radius:999px;background:var(--ink);color:white;padding:10px 14px;cursor:pointer}button:hover{background:#314437}
-input[type=file]{max-width:210px;font-size:13px}label{display:flex;align-items:center;justify-content:space-between;gap:10px}.hint{margin:0;color:var(--muted);font-size:14px}.canvasWrap{background:#f8f1df;border-radius:22px;padding:10px;box-shadow:inset 0 0 0 1px rgba(23,32,26,.16),0 20px 60px rgba(36,42,31,.2)}
+button:disabled{opacity:.45;cursor:not-allowed}input[type=file]{display:none}label{display:flex;align-items:center;justify-content:space-between;gap:10px}.fileSelect{width:100%;min-width:0}.hint{margin:0;color:var(--muted);font-size:14px}.canvasWrap{background:#f8f1df;border-radius:22px;padding:10px;box-shadow:inset 0 0 0 1px rgba(23,32,26,.16),0 20px 60px rgba(36,42,31,.2)}
 canvas{width:100%;height:auto;display:block;border-radius:16px;background:linear-gradient(145deg,#efe5cf,#d9dfd0);cursor:grab;touch-action:none}
 canvas.panning{cursor:grabbing}
 code{font-size:12px;word-break:break-all}@media(max-width:900px){main{grid-template-columns:1fr}}
@@ -29,6 +29,7 @@ const speed=document.getElementById('speed');
 let playing=false,startWall=0,simTime=0,panning=false,lastPan={x:0,y:0};
 let view={scale:1,offsetX:0,offsetY:0};
 let trackBounds,anchorBounds,anchorViewBounds;
+let selectedPopulationHandle=null,selectedPopulationSnapshot=null,selectedPopulationName='',selectedServerPopulationPath='';
 
 function setup(){
   bindControls();
@@ -38,6 +39,7 @@ function setup(){
   renderStats();
   renderGeneWarning();
   draw(0);
+  loadPopulationFromQuery();
 }
 
 function bindControls(){
@@ -45,7 +47,11 @@ function bindControls(){
   document.getElementById('reset').onclick=resetPlayback;
   document.getElementById('fitTrack').onclick=()=>fitBounds(trackBounds);
   document.getElementById('fitAnchors').onclick=()=>fitBounds(anchorViewBounds);
-  document.getElementById('populationFile').onchange=loadSelectedPopulationFile;
+  document.getElementById('selectPopulation').onclick=selectPopulationFile;
+  document.getElementById('serverPopulationSelect').onchange=loadSelectedServerPopulation;
+  document.getElementById('populationFile').onchange=loadFallbackPopulationFile;
+  document.getElementById('reloadPopulation').onclick=reloadSelectedPopulationFile;
+  document.getElementById('reloadPopulation').disabled=true;
   select.onchange=()=>{simTime=0;draw(0)};
   document.getElementById('showAnchors').onchange=()=>draw(simTime);
   document.getElementById('showAnchorBox').onchange=()=>draw(simTime);
@@ -63,8 +69,8 @@ function populateRunSelect(){
 
 function refreshBounds(){
   trackBounds=boundsOf(viewportPoints());
-  anchorBounds=boundsOf(DATA.anchors,0);
-  anchorViewBounds=boundsOf(DATA.anchors,.08);
+  anchorBounds=DATA.anchors.length>0?boundsOf(DATA.anchors,0):trackBounds;
+  anchorViewBounds=DATA.anchors.length>0?boundsOf(DATA.anchors,.08):trackBounds;
 }
 
 function setFileStatus(message,isError=false){
@@ -73,19 +79,142 @@ function setFileStatus(message,isError=false){
   status.style.color=isError?'#8b2717':'var(--muted)';
 }
 
-function loadSelectedPopulationFile(event){
+async function selectPopulationFile(){
+  setFileStatus('Seleccionando archivo de población...');
+  if(isLocalHttpVisualizer()){
+    await refreshServerPopulationList();
+    return;
+  }
+  if(typeof window.showOpenFilePicker!=='function'){
+    setFileStatus('Este navegador no permite recarga directa desde disco. Se abrirá un selector compatible, pero si RankGA reescribe el archivo tendrás que volver a seleccionarlo.',true);
+    document.getElementById('populationFile').click();
+    return;
+  }
+  try{
+    const handles=await window.showOpenFilePicker({
+      multiple:false,
+      types:[{description:'Población RankGA CSV',accept:{'text/csv':['.csv'],'text/plain':['.csv']}}]
+    });
+    selectedPopulationHandle=handles[0];
+    selectedPopulationSnapshot=null;
+    const file=await selectedPopulationHandle.getFile();
+    selectedPopulationName=file.name;
+    readPopulationFile(file,'disk');
+  }catch(error){
+    if(error&&error.name==='AbortError'){
+      setFileStatus('No se seleccionó archivo.');
+    }else{
+      setFileStatus(`No se pudo seleccionar el archivo: ${error.message}`,true);
+    }
+  }
+}
+
+function isLocalHttpVisualizer(){
+  return location.protocol.startsWith('http')&&(location.hostname==='127.0.0.1'||location.hostname==='localhost');
+}
+
+async function loadPopulationFromQuery(){
+  const params=new URLSearchParams(location.search);
+  const file=params.get('file');
+  if(!file)return;
+  if(!isLocalHttpVisualizer()){
+    setFileStatus('El parámetro file sólo puede recargarse automáticamente cuando el visualizador está abierto por localhost.',true);
+    return;
+  }
+  selectedServerPopulationPath=file;
+  selectedPopulationName=file.split('/').pop();
+  await readServerPopulationFile(file);
+}
+
+async function refreshServerPopulationList(){
+  try{
+    const response=await fetch(`/api/populations?ts=${Date.now()}`,{cache:'no-store'});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    const data=await response.json();
+    const files=data.populations||[];
+    const selector=document.getElementById('serverPopulationSelect');
+    selector.innerHTML='<option value="">Selecciona un archivo de población...</option>'+files.map(file=>{
+      const label=`${file.name} (${formatBytes(file.size)})`;
+      return `<option value="${escapeHtml(file.path)}">${escapeHtml(label)}</option>`;
+    }).join('');
+    selector.style.display='block';
+    if(files.length===0){
+      setFileStatus('El servidor local no encontró archivos *_0.csv en runs/problem-racing.',true);
+      return;
+    }
+    setFileStatus('Elige un archivo en el selector. Después, Recargar archivo releerá ese mismo archivo desde disco.');
+  }catch(error){
+    setFileStatus(`No se pudo obtener la lista del servidor local: ${error.message}`,true);
+  }
+}
+
+async function loadSelectedServerPopulation(event){
+  const path=event.target.value;
+  if(!path)return;
+  selectedServerPopulationPath=path;
+  selectedPopulationHandle=null;
+  selectedPopulationSnapshot=null;
+  selectedPopulationName=path.split('/').pop();
+  await readServerPopulationFile(path);
+}
+
+async function readServerPopulationFile(path){
+  try{
+    setFileStatus(`Leyendo ${path.split('/').pop()} desde el servidor local...`);
+    const response=await fetch(`/api/population?file=${encodeURIComponent(path)}&ts=${Date.now()}`,{cache:'no-store'});
+    if(!response.ok)throw new Error(`HTTP ${response.status}`);
+    const text=await response.text();
+    loadPopulationText(text,path.split('/').pop(),'server');
+  }catch(error){
+    setFileStatus(`No se pudo leer ${path}: ${error.message}`,true);
+  }
+}
+
+function loadFallbackPopulationFile(event){
   const file=event.target.files&&event.target.files[0];
+  if(!file)return;
+  selectedPopulationHandle=null;
+  selectedPopulationSnapshot=file;
+  selectedPopulationName=file.name;
+  readPopulationFile(file,'snapshot');
+}
+
+async function reloadSelectedPopulationFile(){
+  if(selectedServerPopulationPath){
+    await readServerPopulationFile(selectedServerPopulationPath);
+    return;
+  }
+  if(selectedPopulationHandle){
+    try{
+      setFileStatus(`Recargando ${selectedPopulationName} desde disco...`);
+      const file=await selectedPopulationHandle.getFile();
+      readPopulationFile(file,'disk');
+    }catch(error){
+      setFileStatus(`No se pudo recargar ${selectedPopulationName}: ${error.message}`,true);
+    }
+    return;
+  }
+  if(selectedPopulationSnapshot){
+    setFileStatus(`No se puede recargar ${selectedPopulationName} porque el navegador entregó sólo un snapshot. Abre el visualizador por localhost y vuelve a seleccionar el archivo.`,true);
+    return;
+  }
+  setFileStatus('Selecciona primero un archivo de población.',true);
+}
+
+function readPopulationFile(file,sourceMode){
   if(!file)return;
   setFileStatus(`Leyendo ${file.name}...`);
   const reader=new FileReader();
   reader.onerror=()=>setFileStatus(
-    `No se pudo leer ${file.name}. Si es el archivo activo de RankGA, carga una copia snapshot porque puede estar siendo reescrito.`,
+    sourceMode==='disk'
+    ? `No se pudo leer ${file.name}. RankGA puede estar reemplazándolo en este instante; espera unos segundos y vuelve a recargar.`
+    : `No se pudo leer ${file.name}. Este navegador entregó un snapshot; vuelve a seleccionar el archivo.`,
     true);
-  reader.onload=()=>setTimeout(()=>loadPopulationText(String(reader.result),file.name),0);
+  reader.onload=()=>setTimeout(()=>loadPopulationText(String(reader.result),file.name,sourceMode),0);
   reader.readAsText(file);
 }
 
-function loadPopulationText(text,sourceName){
+function loadPopulationText(text,sourceName,sourceMode){
   try{
     setFileStatus(`Procesando ${sourceName}...`);
     const row=readBestPopulationRow(text);
@@ -93,6 +222,8 @@ function loadPopulationText(text,sourceName){
     const timeLimit=row.extra.T;
     const goalDistance=DATA.goalDistance;
     DATA.source=sourceName;
+    DATA.simulation.backend=inferBackendFromSource(sourceName);
+    configureSimulationForBackend(DATA.simulation.backend);
     DATA.geneFormat='full-precision whitespace';
     DATA.logged=row.extra;
     DATA.timeLimit=timeLimit;
@@ -107,9 +238,47 @@ function loadPopulationText(text,sourceName){
     renderStats();
     renderGeneWarning();
     draw(0);
-    setFileStatus(`Cargado ${sourceName}: fila rank ${row.rank}, fitness ${row.extra.fitness.toFixed(12)}.`);
+    const isReloadable=sourceMode==='disk'||sourceMode==='server';
+    document.getElementById('reloadPopulation').disabled=!isReloadable;
+    const modeLabel=sourceMode==='server'?'servidor local':(sourceMode==='disk'?'recargable desde disco':'snapshot');
+    const reloadNote=isReloadable
+      ? ' Recargar archivo volverá a leer este mismo archivo desde disco.'
+      : ' Este modo no puede recargar cambios de RankGA; abre el visualizador por localhost.';
+    setFileStatus(`Cargado ${sourceName} (${modeLabel}, backend ${DATA.simulation.backend}): fila rank ${row.rank}, fitness ${row.extra.fitness.toFixed(12)}.${reloadNote}`,!isReloadable);
   }catch(error){
     setFileStatus(`Archivo rechazado: ${error.message}`,true);
+  }
+}
+
+function formatBytes(size){
+  if(size<1024)return `${size} B`;
+  if(size<1048576)return `${(size/1024).toFixed(1)} KB`;
+  return `${(size/1048576).toFixed(1)} MB`;
+}
+
+function escapeHtml(text){
+  return String(text)
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;');
+}
+
+function inferBackendFromSource(sourceName){
+  return String(sourceName).includes('_rars_')?'rars':'kinematic';
+}
+
+function configureSimulationForBackend(backend){
+  if(backend==='rars'){
+    DATA.simulation.timeStepSeconds=.05;
+    DATA.simulation.rarsMass=DATA.simulation.rarsMass||1100;
+    DATA.simulation.rarsMaxPower=DATA.simulation.rarsMaxPower||135000;
+    DATA.simulation.rarsFrictionCoefficient=DATA.simulation.rarsFrictionCoefficient||1.4;
+    DATA.simulation.rarsSlipSpeedScale=DATA.simulation.rarsSlipSpeedScale||2.0;
+    DATA.simulation.rarsDragCoefficient=DATA.simulation.rarsDragCoefficient||.45;
+    DATA.simulation.rarsGravity=DATA.simulation.rarsGravity||9.81;
+  }else{
+    DATA.simulation.timeStepSeconds=.2;
   }
 }
 
@@ -174,13 +343,20 @@ function buildAnchors(genes){
   const anchors=[];
   for(let index=0;index<DATA.simulation.countOfAnchors;index++){
     const offset=index*DATA.simulation.genesPerAnchor;
-    anchors.push({x:genes[offset],y:genes[offset+1],speed:genes[offset+2],direction:genes[offset+3]});
+    const rawX=genes[offset],rawY=genes[offset+1],rawSpeed=genes[offset+2],rawDirection=genes[offset+3];
+    anchors.push({
+      x:decodeX(rawX),y:decodeY(rawY),speed:decodeSpeed(rawSpeed),direction:decodeDirection(rawDirection),
+      rawX,rawY,rawSpeed,rawDirection
+    });
   }
   return anchors;
 }
 
 function simulateRun(genes,start,timeLimit,goalDistance,runIndex){
-  let state={x:start.x,y:start.y,speed:start.speed,heading:wrapToPi(start.heading),time:0};
+  const initialPolicy=interpolatePolicy(genes,{x:start.x,y:start.y,speed:start.speed,heading:wrapToPi(start.heading),time:0});
+  const startSpeed=clampJs(initialPolicy.speedTarget,0,DATA.maxSpeed);
+  let state={x:start.x,y:start.y,speed:startSpeed,heading:wrapToPi(start.heading),time:0,
+    vx:startSpeed*Math.cos(start.heading),vy:startSpeed*Math.sin(start.heading)};
   let lastLapProgress=projectProgress(state.x,state.y),progress=0,offTrack=false;
   const points=[pointDict(state,0,true)];
   while(state.time<timeLimit){
@@ -197,14 +373,64 @@ function simulateRun(genes,start,timeLimit,goalDistance,runIndex){
 }
 
 function stepBackend(state,action,lastLapProgress,progress){
+  if(DATA.simulation.backend==='rars'){
+    return stepRarsBackend(state,action,lastLapProgress,progress);
+  }
+  return stepKinematicBackend(state,action,lastLapProgress,progress);
+}
+
+function stepKinematicBackend(state,action,lastLapProgress,progress){
   const sim=DATA.simulation;
   const acceleration=sim.throttleAcceleration*action.throttle-sim.brakeAcceleration*action.brake-sim.dragCoefficient*state.speed;
   const nextSpeed=clampJs(state.speed+acceleration*sim.timeStepSeconds,0,DATA.maxSpeed);
   const averageSpeed=.5*(state.speed+nextSpeed);
-  const nextHeading=wrapToPi(state.heading+sim.steeringRateGain*action.steering*sim.timeStepSeconds);
+  const nextHeading=wrapToPi(action.headingTarget);
   const nextX=state.x+averageSpeed*Math.cos(nextHeading)*sim.timeStepSeconds;
   const nextY=state.y+averageSpeed*Math.sin(nextHeading)*sim.timeStepSeconds;
   const nextState={x:nextX,y:nextY,speed:nextSpeed,heading:nextHeading,time:state.time+sim.timeStepSeconds};
+  const nextLapProgress=projectProgress(nextX,nextY);
+  const nextProgress=progress+wrapProgressDelta(nextLapProgress-lastLapProgress,DATA.lapLength);
+  return {state:nextState,lastLapProgress:nextLapProgress,progress:nextProgress,offTrack:!isInsideTrack(nextX,nextY)};
+}
+
+function stepRarsBackend(state,action,lastLapProgress,progress){
+  const sim=DATA.simulation,dt=sim.timeStepSeconds;
+  const vx=Number.isFinite(state.vx)?state.vx:state.speed*Math.cos(state.heading);
+  const vy=Number.isFinite(state.vy)?state.vy:state.speed*Math.sin(state.heading);
+  const speed=Math.hypot(vx,vy);
+  const velocityHeading=speed>sim.policyEpsilon?Math.atan2(vy,vx):state.heading;
+  const wheelDirection=wrapToPi(action.headingTarget);
+  const commandedWheelSpeed=clampJs(action.speedTarget,0,DATA.maxSpeed);
+  const alpha=wrapToPi(wheelDirection-velocityHeading);
+  const slipNormal=-commandedWheelSpeed*Math.sin(alpha);
+  const slipTangential=speed-commandedWheelSpeed*Math.cos(alpha);
+  const slipSpeed=Math.hypot(slipTangential,slipNormal);
+  const mu=sim.rarsFrictionCoefficient*(1-Math.exp(-slipSpeed/sim.rarsSlipSpeedScale));
+  const trackForce=sim.rarsMass*sim.rarsGravity*mu;
+  let forceNormal=0,forceTangential=0;
+  if(slipSpeed>sim.policyEpsilon){
+    forceNormal=-trackForce*slipNormal/slipSpeed;
+    forceTangential=-trackForce*slipTangential/slipSpeed;
+  }
+  const power=Math.abs(commandedWheelSpeed)*(forceTangential*Math.cos(alpha)+forceNormal*Math.sin(alpha));
+  if(power>sim.rarsMaxPower&&power>sim.policyEpsilon){
+    const scale=sim.rarsMaxPower/power;
+    forceNormal*=scale;forceTangential*=scale;
+  }
+  const drag=sim.rarsDragCoefficient*speed*speed;
+  const tangentialAcceleration=(forceTangential-drag)/sim.rarsMass;
+  const normalAcceleration=forceNormal/sim.rarsMass;
+  const ax=tangentialAcceleration*Math.cos(velocityHeading)-normalAcceleration*Math.sin(velocityHeading);
+  const ay=normalAcceleration*Math.cos(velocityHeading)+tangentialAcceleration*Math.sin(velocityHeading);
+  let nextVx=vx+ax*dt,nextVy=vy+ay*dt,nextSpeed=Math.hypot(nextVx,nextVy);
+  if(nextSpeed>DATA.maxSpeed){
+    const speedScale=DATA.maxSpeed/nextSpeed;
+    nextVx*=speedScale;nextVy*=speedScale;nextSpeed=DATA.maxSpeed;
+  }
+  const nextX=state.x+.5*(vx+nextVx)*dt;
+  const nextY=state.y+.5*(vy+nextVy)*dt;
+  const nextHeading=nextSpeed>sim.policyEpsilon?Math.atan2(nextVy,nextVx):velocityHeading;
+  const nextState={x:nextX,y:nextY,speed:nextSpeed,heading:wrapToPi(nextHeading),time:state.time+dt,vx:nextVx,vy:nextVy};
   const nextLapProgress=projectProgress(nextX,nextY);
   const nextProgress=progress+wrapProgressDelta(nextLapProgress-lastLapProgress,DATA.lapLength);
   return {state:nextState,lastLapProgress:nextLapProgress,progress:nextProgress,offTrack:!isInsideTrack(nextX,nextY)};
@@ -215,11 +441,13 @@ function interpolatePolicy(genes,state){
   const sim=DATA.simulation;
   for(let anchorIndex=0;anchorIndex<sim.countOfAnchors;anchorIndex++){
     const offset=anchorIndex*sim.genesPerAnchor;
-    const d=Math.hypot(state.x-genes[offset],state.y-genes[offset+1]);
+    const anchorX=decodeX(genes[offset]),anchorY=decodeY(genes[offset+1]);
+    const speedTarget=decodeSpeed(genes[offset+2]),directionTarget=decodeDirection(genes[offset+3]);
+    const d=Math.hypot(state.x-anchorX,state.y-anchorY);
     const weight=1/Math.pow(d+sim.policyEpsilon,sim.inverseDistancePower);
-    weightedSpeed+=weight*genes[offset+2];
-    weightedDirectionX+=weight*Math.cos(genes[offset+3]);
-    weightedDirectionY+=weight*Math.sin(genes[offset+3]);
+    weightedSpeed+=weight*speedTarget;
+    weightedDirectionX+=weight*Math.cos(directionTarget);
+    weightedDirectionY+=weight*Math.sin(directionTarget);
     totalWeight+=weight;
   }
   if(totalWeight<=0)throw new Error('la interpolación produjo peso total no positivo');
@@ -231,13 +459,20 @@ function adaptAction(policy,state){
   return {
     steering:clampJs(wrapToPi(policy.directionTarget-state.heading),-1,1),
     throttle:speedError>0?clampJs(.2*speedError,0,1):0,
-    brake:speedError<0?clampJs(-.2*speedError,0,1):0
+    brake:speedError<0?clampJs(-.2*speedError,0,1):0,
+    headingTarget:policy.directionTarget,
+    speedTarget:policy.speedTarget
   };
 }
 
 function projectProgress(x,y){
   return projectTrack(x,y).progress;
 }
+
+function decodeX(rawX){return DATA.simulation.policyCenterX+rawX*DATA.simulation.policyHalfRangeX}
+function decodeY(rawY){return DATA.simulation.policyCenterY+rawY*DATA.simulation.policyHalfRangeY}
+function decodeSpeed(rawSpeed){return rawSpeed*DATA.simulation.policySpeedScale}
+function decodeDirection(rawDirection){return wrapToPi(rawDirection*Math.PI)}
 
 function isInsideTrack(x,y){
   return projectTrack(x,y).distance<=DATA.simulation.trackHalfWidth;
@@ -263,13 +498,29 @@ function pointDict(state,progress,inside){
 }
 
 function renderGeneWarning(){
-  document.getElementById('geneWarning').textContent=`Genes leídos en formato vigente: ${DATA.geneFormat}.`;
+  document.getElementById('geneWarning').textContent=DATA.runs.length>0
+    ? `Genes leídos en formato vigente: ${DATA.geneFormat}; x, y, velocidad y ángulo se decodifican desde genes normalizados.`
+    : 'Selecciona un archivo de población *_0.csv para reconstruir el mejor individuo.';
 }
 
 function renderStats(){
+  if(DATA.runs.length===0||!DATA.logged){
+    const rows=[
+      ['Estado','sin población cargada'],
+    ['Backend',DATA.simulation.backend||'kinematic'],
+    ['Vuelta',DATA.lapLength.toFixed(6)+' m'],
+      ['Corridas','0'],
+      ['Anclas','0'],
+      ['Zoom',`${view.scale.toFixed(2)} px/m`]
+    ];
+    document.getElementById('stats').innerHTML=rows.map(r=>`<div class="stat"><span>${r[0]}</span><strong>${r[1]}</strong></div>`).join('');
+    document.getElementById('viewportWarning').textContent='Carga un archivo desde el selector o usa ?file=runs/problem-racing/archivo_0.csv.';
+    return;
+  }
   const best=DATA.logged,visible=countOfVisibleAnchors(),hidden=DATA.anchors.length-visible;
   const boxWidth=anchorBounds.maxX-anchorBounds.minX,boxHeight=anchorBounds.maxY-anchorBounds.minY;
   const rows=[
+    ['Backend',DATA.simulation.backend||'kinematic'],
     ['Fitness registrado',best.fitness.toFixed(6)],['Distancia registrada',best.distance.toFixed(6)+' m'],
     ['Meta',best.goalReached?'sí':'no'],['Salida de pista',best.offTrack?'sí':'no'],
     ['Velocidad media',best.avgSpeed.toFixed(6)+' m/s'],['T',best.T.toFixed(6)+' s'],['M',best.M],
@@ -306,15 +557,17 @@ function inScreen(p){if(!finitePoint(p))return false;const x=sx(p.x),y=sy(p.y);r
 function visibleAnchors(){return DATA.anchors.filter(inScreen)}
 function countOfVisibleAnchors(){return visibleAnchors().length}
 function path(points,close=false){ctx.beginPath();points.forEach((p,i)=>{if(i===0)ctx.moveTo(sx(p.x),sy(p.y));else ctx.lineTo(sx(p.x),sy(p.y))});if(close)ctx.closePath()}
+function safePoints(run){return run.points.filter(p=>p.inside)}
+function displayedTrail(run,t){const pts=safePoints(run).filter(p=>p.time<=t);return pts.length>0?pts:[run.points[0]]}
 function pointAt(run,t){
-  const pts=run.points;if(t<=0)return pts[0];
+  const pts=safePoints(run);if(pts.length===0)return run.points[0];if(t<=0)return pts[0];
   for(let i=1;i<pts.length;i++){if(pts[i].time>=t){const a=pts[i-1],b=pts[i],u=(t-a.time)/(b.time-a.time||1);return{x:a.x+(b.x-a.x)*u,y:a.y+(b.y-a.y)*u,heading:a.heading+(b.heading-a.heading)*u,speed:a.speed+(b.speed-a.speed)*u,time:t,progress:a.progress+(b.progress-a.progress)*u,inside:b.inside}}}
   return pts[pts.length-1];
 }
 function selectedRuns(){return select.value==='all'?DATA.runs:DATA.runs.filter(r=>String(r.index)===select.value)}
 function anchorTargetLength(a){const speedTarget=Number.isFinite(a.speed)?Math.max(0,a.speed):0;return 12+Math.min(speedTarget,DATA.maxSpeed)/DATA.maxSpeed*112}
 function drawAnchorTarget(a){const x=sx(a.x),y=sy(a.y),length=anchorTargetLength(a);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.cos(a.direction)*length,y-Math.sin(a.direction)*length);ctx.stroke()}
-function drawAnchorBox(){const b=anchorBounds;ctx.save();ctx.setLineDash([10,6]);ctx.strokeStyle='rgba(214,79,42,.95)';ctx.lineWidth=2;ctx.strokeRect(sx(b.minX),sy(b.maxY),(b.maxX-b.minX)*view.scale,(b.maxY-b.minY)*view.scale);ctx.setLineDash([]);ctx.fillStyle='rgba(214,79,42,.95)';ctx.font='13px Georgia';ctx.fillText('bounding box anclas',sx(b.minX)+6,sy(b.maxY)-8);ctx.restore()}
+function drawAnchorBox(){if(DATA.anchors.length===0)return;const b=anchorBounds;ctx.save();ctx.setLineDash([10,6]);ctx.strokeStyle='rgba(214,79,42,.95)';ctx.lineWidth=2;ctx.strokeRect(sx(b.minX),sy(b.maxY),(b.maxX-b.minX)*view.scale,(b.maxY-b.minY)*view.scale);ctx.setLineDash([]);ctx.fillStyle='rgba(214,79,42,.95)';ctx.font='13px Georgia';ctx.fillText('bounding box anclas',sx(b.minX)+6,sy(b.maxY)-8);ctx.restore()}
 function drawAnchors(){const anchors=visibleAnchors();ctx.save();ctx.strokeStyle='rgba(122,82,18,.76)';ctx.lineWidth=1.8;ctx.lineCap='round';anchors.forEach(drawAnchorTarget);ctx.restore();anchors.forEach(a=>{ctx.beginPath();ctx.arc(sx(a.x),sy(a.y),3,0,Math.PI*2);ctx.fillStyle=a.speed>=0?'rgba(47,111,136,.55)':'rgba(214,79,42,.55)';ctx.fill()})}
 function draw(t){
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -324,14 +577,14 @@ function draw(t){
   path(DATA.track.right,true);ctx.stroke();path(DATA.track.center,true);ctx.setLineDash([7,7]);ctx.strokeStyle='rgba(38,53,43,.45)';ctx.lineWidth=1.3;ctx.stroke();ctx.setLineDash([]);
   if(document.getElementById('showAnchorBox').checked)drawAnchorBox();
   if(document.getElementById('showAnchors').checked)drawAnchors();
-  selectedRuns().forEach(r=>{const color=['#d64f2a','#2f6f88','#57783f','#8a5a2b','#6e4b8b','#1f8a70','#a83a3a'][r.index%7];if(document.getElementById('showTrails').checked){const trail=r.points.filter(p=>p.time<=t);path(trail);ctx.strokeStyle=color;ctx.globalAlpha=.72;ctx.lineWidth=3;ctx.stroke();ctx.globalAlpha=1}const p=pointAt(r,t);drawCar(p,color);drawLabel(p,`run ${r.index}`)});
+  selectedRuns().forEach(r=>{const color=['#d64f2a','#2f6f88','#57783f','#8a5a2b','#6e4b8b','#1f8a70','#a83a3a'][r.index%7];if(document.getElementById('showTrails').checked){const trail=displayedTrail(r,t);path(trail);ctx.strokeStyle=color;ctx.globalAlpha=.72;ctx.lineWidth=3;ctx.stroke();ctx.globalAlpha=1}const p=pointAt(r,t);drawCar(p,color);drawLabel(p,`run ${r.index}`)});
   requestAnimationFrameMaybe();
 }
 function drawCar(p,color){ctx.save();ctx.translate(sx(p.x),sy(p.y));ctx.rotate(-p.heading);ctx.fillStyle=color;ctx.strokeStyle='#111';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-8,-5);ctx.lineTo(-6,0);ctx.lineTo(-8,5);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
 function drawLabel(p,text){ctx.fillStyle='#17201a';ctx.font='14px Georgia';ctx.fillText(`${text}  ${p.progress.toFixed(1)} m`,sx(p.x)+10,sy(p.y)-10)}
-function togglePlayback(){playing=!playing;play.textContent=playing?'Pausar':'Reproducir';if(playing){startWall=performance.now()-simTime*1000/parseFloat(speed.value);requestAnimationFrame(tick)}}
+function togglePlayback(){if(DATA.runs.length===0){setFileStatus('Carga una población antes de reproducir.',true);return}playing=!playing;play.textContent=playing?'Pausar':'Reproducir';if(playing){startWall=performance.now()-simTime*1000/parseFloat(speed.value);requestAnimationFrame(tick)}}
 function resetPlayback(){playing=false;simTime=0;play.textContent='Reproducir';draw(0)}
-function tick(){if(!playing)return;const rate=parseFloat(speed.value),maxT=Math.max(...selectedRuns().map(r=>r.duration));simTime=(performance.now()-startWall)/1000*rate;if(simTime>maxT){playing=false;play.textContent='Reproducir';simTime=maxT}draw(simTime)}
+function tick(){if(!playing)return;const runs=selectedRuns();if(runs.length===0){playing=false;play.textContent='Reproducir';return}const rate=parseFloat(speed.value),maxT=Math.max(...runs.map(r=>r.duration));simTime=(performance.now()-startWall)/1000*rate;if(simTime>maxT){playing=false;play.textContent='Reproducir';simTime=maxT}draw(simTime)}
 function requestAnimationFrameMaybe(){if(playing)requestAnimationFrame(tick)}
 function handleWheel(event){event.preventDefault();const p=screenPoint(event),before=worldAt(p),factor=Math.exp(-event.deltaY*.001);view.scale=clampJs(view.scale*factor,.05,80);view.offsetX=p.x-before.x*view.scale;view.offsetY=p.y+before.y*view.scale;renderStats();draw(simTime)}
 function startPan(event){panning=true;lastPan=screenPoint(event);canvas.setPointerCapture(event.pointerId);canvas.classList.add('panning')}

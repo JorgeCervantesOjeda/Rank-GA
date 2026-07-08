@@ -175,7 +175,7 @@ public class RankGAAdaptiveTest {
     List<String> runLines = Files.readAllLines( Paths.get( runPrefix.toString()
                                                            + ".csv" ),
                                                 StandardCharsets.UTF_8 );
-    assertEquals( "t, ni, rep, g, s, ph, d, rank, mutationIntensity, fitness, extra, genes, DateTime, mil",
+    assertEquals( "t, ni, rep, g, s, evaluations, evalsPerSecond, ph, d, rank, mutationIntensity, fitness, extra, genes, DateTime, mil",
                   runLines.get( 0 ) );
 
     List<String> populationLines = Files.readAllLines(

@@ -65,8 +65,8 @@ public class Population {
    * </ul>
    * Both are treated as <b>intensities</b> (unitless), not probabilities.
    */
-  private final double localSearchIntensity;
-  private final double globalSearchIntensity;
+  private double localSearchIntensity;
+  private double globalSearchIntensity;
 
   /**
    * Selection pressure S fixed by algorithm design.
@@ -84,7 +84,7 @@ public class Population {
    * (r_i)^β. With G > L ⇒ β > 0 ⇒ I_0 = 0 (elite preservation) and intensity
    * increases with rank.</p>
    */
-  private final double mutationExponent;
+  private double mutationExponent;
 
   /**
    * Problem factory & PRNG for constructing/copying individuals and for
@@ -160,8 +160,13 @@ public class Population {
    * depend on index order.</p>
    */
   public void evaluate() {
-    for( Individual individual : individuals ) {
-      individual.updateFitness();
+    if( problem instanceof BatchEvaluatableProblem batchProblem ) {
+      batchProblem.evaluateFitnessBatch(
+        individuals.toArray( new Individual[ 0 ] ) );
+    } else {
+      for( Individual individual : individuals ) {
+        individual.updateFitness();
+      }
     }
     sortIndividualsByFitness();
   }
@@ -301,6 +306,26 @@ public class Population {
       double intensity = globalSearchIntensity * Math.pow( r_i,
                                                            mutationExponent );
       individuals.get( i ).mutate( intensity );
+    }
+  }
+
+  // --------------------------------------------------------------------------------------------
+  // Adaptive recalculation of mutation exponent
+  // --------------------------------------------------------------------------------------------
+  void recalculateBeta() {
+    // Recalculate mutation exponent β = ln(G/L) / ln(N-1).
+    int N = individuals.size();
+    globalSearchIntensity = problem.getGlobalSearchIntensity();
+    localSearchIntensity = problem.getLocalSearchIntensity();
+    double newMutationExponent =
+      Math.log( globalSearchIntensity / localSearchIntensity )
+      / Math.log( N - 1 );
+    if( newMutationExponent != this.mutationExponent ) {
+      System.out.println(
+        "Recalculating mutation exponent (beta): " + this.mutationExponent
+        + " -> " + newMutationExponent );
+      // Update the mutation exponent.
+      this.mutationExponent = newMutationExponent; 
     }
   }
 

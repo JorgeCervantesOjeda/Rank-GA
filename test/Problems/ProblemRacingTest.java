@@ -225,6 +225,185 @@ public class ProblemRacingTest {
   }
 
   @Test
+  public void distanceOnlyFitnessPrioritizesAverageDistanceOverSafetyCount() {
+    ProblemRacing saferProblem = buildScriptedProblem(
+      2,
+      3.0,
+      Double.MAX_VALUE,
+      new RacingStartState( 1.0,
+                            -1.0,
+                            0.0,
+                            0.0 ),
+      new RacingStartState( 1.0,
+                            -1.0,
+                            0.0,
+                            0.0 ) );
+    ProblemRacing fartherButUnsafeProblem = buildScriptedProblem(
+      2,
+      3.0,
+      Double.MAX_VALUE,
+      new RacingStartState( 100.0,
+                            1.0,
+                            0.0,
+                            -1.0 ),
+      new RacingStartState( 100.0,
+                            1.0,
+                            0.0,
+                            -1.0 ) );
+    saferProblem.useDistanceOnlyFitness();
+    fartherButUnsafeProblem.useDistanceOnlyFitness();
+
+    double saferFitness = saferProblem.fitness(
+      saferProblem.getNewIndividual( false,
+                                     new Random( 1 ) ) );
+    double fartherButUnsafeFitness = fartherButUnsafeProblem.fitness(
+      fartherButUnsafeProblem.getNewIndividual( false,
+                                                new Random( 1 ) ) );
+
+    assertTrue( fartherButUnsafeFitness > saferFitness );
+  }
+
+  @Test
+  public void targetDistanceSpeedFitnessRewardsFasterGoalCompletionAfterTargetDistance() {
+    ProblemRacing fasterProblem = buildScriptedProblem(
+      1,
+      10.0,
+      25.0,
+      new RacingStartState( 10.0,
+                            -1.0,
+                            0.0,
+                            0.0 ) );
+    ProblemRacing slowerProblem = buildScriptedProblem(
+      1,
+      10.0,
+      25.0,
+      new RacingStartState( 5.0,
+                            -1.0,
+                            0.0,
+                            0.0 ) );
+    fasterProblem.useTargetDistanceSpeedFitness();
+    slowerProblem.useTargetDistanceSpeedFitness();
+
+    double fasterFitness = fasterProblem.fitness(
+      fasterProblem.getNewIndividual( false,
+                                      new Random( 1 ) ) );
+    double slowerFitness = slowerProblem.fitness(
+      slowerProblem.getNewIndividual( false,
+                                      new Random( 1 ) ) );
+
+    assertTrue( fasterFitness > slowerFitness );
+  }
+
+  @Test
+  public void fitnessTreatsEndingAtZeroSpeedAsOffTrack() {
+    ScriptedBackend backend = new ScriptedBackend();
+    CountingStartStateProvider provider =
+            new CountingStartStateProvider(
+              new RacingStartState( 0.0,
+                                    -1.0,
+                                    0.0,
+                                    0.0 ) );
+    ProblemRacing problem = new ProblemRacing( backend,
+                                               new ZeroActionAdapter(),
+                                               provider,
+                                               1,
+                                               1,
+                                               3.0,
+                                               1.5,
+                                               2 );
+    Individual individual = problem.getNewIndividual( false,
+                                                      new Random( 1 ) );
+
+    individual.updateFitness();
+
+    assertEquals( computeOpenGoalFitness( 0,
+                                          0.0 ),
+                  individual.getFitness(),
+                  1.0e-12 );
+    String individualString = individual.toString();
+    assertTrue( individualString.contains( "offTrack=true" ) );
+    assertTrue( individualString.contains( "safeRuns=0" ) );
+  }
+
+  @Test
+  public void randomizedOvalIndividualStartsWithAnchorsOnBothTrackBorders() {
+    SimpleOvalTrack track = new SimpleOvalTrack( "simple_oval",
+                                                 0.0,
+                                                 0.0,
+                                                 25.0,
+                                                 30.0,
+                                                 5.0 );
+    SimpleOvalRacingBackend backend = new SimpleOvalRacingBackend( track,
+                                                                   0.2,
+                                                                   1.0,
+                                                                   12.0,
+                                                                   18.0,
+                                                                   0.05,
+                                                                   40.0 );
+    ProblemRacing problem = new ProblemRacing(
+      backend,
+      new ZeroActionAdapter(),
+      new CountingStartStateProvider(
+        new RacingStartState( 0.0,
+                              25.0,
+                              0.0,
+                              0.0 ) ),
+      10,
+      1,
+      1.0,
+      1.5,
+      2 );
+
+    Individual individual = problem.getNewIndividual( true,
+                                                      new Random( 1234L ) );
+
+    int countOfPositiveBorderAnchors = 0;
+    int countOfNegativeBorderAnchors = 0;
+    for( int anchorIndex = 0;
+         anchorIndex < 10;
+         anchorIndex++ ) {
+      int offset = anchorIndex * 4;
+      double x = backend.getPolicyCenterX()
+                 + individual.getGene( offset )
+                   .getValue() * backend.getPolicyHalfRangeX();
+      double y = backend.getPolicyCenterY()
+                 + individual.getGene( offset + 1 )
+                   .getValue() * backend.getPolicyHalfRangeY();
+      double speedTarget = individual.getGene( offset + 2 )
+                           .getValue() * backend.getPolicySpeedScale();
+      double directionTarget = wrapToPi( individual.getGene( offset + 3 )
+                                         .getValue() * Math.PI );
+      SimpleOvalTrack.CenterlinePose pose = track.computeCenterlinePose(
+        track.projectProgressMeters( x,
+                                     y ) );
+      double deltaX = x - pose.getX();
+      double deltaY = y - pose.getY();
+      double signedLateralDistance = deltaX * pose.getNormalX()
+                                     + deltaY * pose.getNormalY();
+      double tangentAlignment = Math.cos( directionTarget ) * Math.cos( pose.getHeading() )
+                                + Math.sin( directionTarget )
+                                  * Math.sin( pose.getHeading() );
+
+      assertTrue( track.isInsideTrack( x,
+                                       y ) );
+      assertTrue( Math.abs( signedLateralDistance ) > 0.85 * track.getHalfWidth() );
+      assertTrue( speedTarget >= 1.0 );
+      assertTrue( speedTarget <= 5.0 );
+      assertTrue( tangentAlignment > 0.75 );
+      if( signedLateralDistance > 0.0 ) {
+        countOfPositiveBorderAnchors++;
+      } else {
+        countOfNegativeBorderAnchors++;
+      }
+    }
+
+    assertEquals( 5,
+                  countOfPositiveBorderAnchors );
+    assertEquals( 5,
+                  countOfNegativeBorderAnchors );
+  }
+
+  @Test
   public void aggregateFitnessPrioritizesAverageDistanceBeforeGoalCount() {
     ProblemRacing fartherProblem = buildScriptedProblem(
       2,
@@ -601,10 +780,12 @@ public class ProblemRacingTest {
     Individual individual = problem.getNewIndividual( false,
                                                       new Random( 1 ) );
 
-    individual.getGene( 0 ).setDoubleValue( 50.0 );
+    individual.getGene( 0 ).setDoubleValue(
+      50.0 / backend.getPolicyHalfRangeX() );
     individual.getGene( 1 ).setDoubleValue( 0.0 );
-    individual.getGene( 2 ).setDoubleValue( 10.0 );
-    individual.getGene( 3 ).setDoubleValue( Math.PI / 2.0 );
+    individual.getGene( 2 ).setDoubleValue(
+      10.0 / backend.getPolicySpeedScale() );
+    individual.getGene( 3 ).setDoubleValue( 0.5 );
 
     double fitness = problem.fitness( individual );
 
@@ -655,6 +836,43 @@ public class ProblemRacingTest {
     assertEquals( Math.PI / 4.0,
                   actionAdapter.getLastPolicyAction().getDirectionTarget(),
                   1.0e-9 );
+  }
+
+  @Test
+  public void runStartsAtInterpolatedTargetSpeed() {
+    ObservationBackend backend = new ObservationBackend();
+    CapturingActionAdapter actionAdapter = new CapturingActionAdapter();
+    CountingStartStateProvider provider =
+            new CountingStartStateProvider(
+              new RacingStartState( 5.0,
+                                    0.0,
+                                    0.0,
+                                    0.0 ) );
+    ProblemRacing problem = new ProblemRacing( backend,
+                                               actionAdapter,
+                                               provider,
+                                               1,
+                                               1,
+                                               1.0,
+                                               1.5,
+                                               2 );
+    Individual individual = problem.getNewIndividual( false,
+                                                      new Random( 1 ) );
+
+    setAnchor( individual,
+               0,
+               5.0,
+               0.0,
+               0.5,
+               0.0 );
+
+    problem.fitness( individual );
+
+    assertTrue( actionAdapter.getLastCarState() != null );
+    assertEquals( 0.5,
+                  actionAdapter.getLastCarState()
+                    .getSpeed(),
+                  1.0e-12 );
   }
 
   @Test
@@ -712,6 +930,122 @@ public class ProblemRacingTest {
                   1.0e-9 );
   }
 
+  @Test
+  public void pureSimpleOvalEvaluatorMatchesMutableBackendReference() {
+    String propertyName = "rankga.racing.simpleOvalPure";
+    String previousValue = System.getProperty( propertyName );
+    try {
+      SimpleOvalTrack track = new SimpleOvalTrack( "simple_oval",
+                                                   0.0,
+                                                   0.0,
+                                                   25.0,
+                                                   30.0,
+                                                   5.0 );
+      SimpleTargetRacingActionAdapter actionAdapter =
+              new SimpleTargetRacingActionAdapter();
+      CountingStartStateProvider provider =
+              new CountingStartStateProvider(
+                new RacingStartState( -15.0,
+                                      25.0,
+                                      3.0,
+                                      0.0 ),
+                new RacingStartState( 0.0,
+                                      25.0,
+                                      4.0,
+                                      0.2 ) );
+
+      System.setProperty( propertyName,
+                          "false" );
+      ProblemRacing referenceProblem = new ProblemRacing(
+        new SimpleOvalRacingBackend( track,
+                                     0.2,
+                                     1.0,
+                                     12.0,
+                                     18.0,
+                                     0.05,
+                                     40.0 ),
+        actionAdapter,
+        provider,
+        3,
+        2,
+        2.0,
+        1.5,
+        2,
+        1.0,
+        0.0,
+        2.0,
+        0.001,
+        1.0,
+        100.0 );
+      Individual referenceIndividual = referenceProblem.getNewIndividual(
+        false,
+        new Random( 1 ) );
+      setAnchor( referenceIndividual,
+                 0,
+                 -15.0 / 65.0,
+                 25.0 / 30.0,
+                 9.0 / 40.0,
+                 0.0 );
+      setAnchor( referenceIndividual,
+                 1,
+                 0.0,
+                 25.0 / 30.0,
+                 10.0 / 40.0,
+                 0.0 );
+      setAnchor( referenceIndividual,
+                 2,
+                 15.0 / 65.0,
+                 25.0 / 30.0,
+                 9.0 / 40.0,
+                 0.0 );
+      double referenceFitness = referenceProblem.fitness(
+        referenceIndividual );
+
+      System.setProperty( propertyName,
+                          "true" );
+      ProblemRacing pureProblem = new ProblemRacing(
+        new SimpleOvalRacingBackend( track,
+                                     0.2,
+                                     1.0,
+                                     12.0,
+                                     18.0,
+                                     0.05,
+                                     40.0 ),
+        actionAdapter,
+        provider,
+        3,
+        2,
+        2.0,
+        1.5,
+        2,
+        1.0,
+        0.0,
+        2.0,
+        0.001,
+        1.0,
+        100.0 );
+      Individual pureIndividual = pureProblem.getNewIndividual(
+        false,
+        new Random( 1 ) );
+      for( int i = 0; i < referenceProblem.getGenomeLength(); i++ ) {
+        pureIndividual.getGene( i )
+          .setDoubleValue( referenceIndividual.getGene( i )
+            .getValue() );
+      }
+
+      assertEquals( referenceFitness,
+                    pureProblem.fitness( pureIndividual ),
+                    1.0e-12 );
+    } finally {
+      if( previousValue == null ) {
+        System.clearProperty( propertyName );
+      } else {
+        System.setProperty( propertyName,
+                            previousValue );
+      }
+    }
+  }
+
   private static void setAnchor( Individual individual,
                                  int anchorIndex,
                                  double x,
@@ -722,7 +1056,19 @@ public class ProblemRacingTest {
     individual.getGene( offset ).setDoubleValue( x );
     individual.getGene( offset + 1 ).setDoubleValue( y );
     individual.getGene( offset + 2 ).setDoubleValue( speedTarget );
-    individual.getGene( offset + 3 ).setDoubleValue( directionTarget );
+    individual.getGene( offset + 3 ).setDoubleValue(
+      wrapToPi( directionTarget ) / Math.PI );
+  }
+
+  private static double wrapToPi( double angle ) {
+    double wrappedAngle = angle;
+    while( wrappedAngle <= -Math.PI ) {
+      wrappedAngle += 2.0 * Math.PI;
+    }
+    while( wrappedAngle > Math.PI ) {
+      wrappedAngle -= 2.0 * Math.PI;
+    }
+    return wrappedAngle;
   }
 
   private static double computeOpenGoalFitness( int countOfSafeRuns,
@@ -806,12 +1152,14 @@ public class ProblemRacingTest {
     implements RacingActionAdapter {
 
     private RacingPolicyAction lastPolicyAction;
+    private RacingCarState lastCarState;
     private final List<RacingPolicyAction> policyActions = new ArrayList<RacingPolicyAction>();
 
     @Override
     public RacingBackendAction toBackendAction( RacingPolicyAction policyAction,
                                                 RacingCarState carState ) {
       this.lastPolicyAction = policyAction;
+      this.lastCarState = carState;
       policyActions.add( policyAction );
       return new RacingBackendAction( 0.0,
                                       0.0,
@@ -820,6 +1168,10 @@ public class ProblemRacingTest {
 
     public RacingPolicyAction getLastPolicyAction() {
       return lastPolicyAction;
+    }
+
+    public RacingCarState getLastCarState() {
+      return lastCarState;
     }
 
     public List<RacingPolicyAction> getPolicyActions() {
@@ -924,6 +1276,31 @@ public class ProblemRacingTest {
                                   double y ) {
       return true;
     }
+
+    @Override
+    public double getPolicyCenterX() {
+      return 0.0;
+    }
+
+    @Override
+    public double getPolicyCenterY() {
+      return 0.0;
+    }
+
+    @Override
+    public double getPolicyHalfRangeX() {
+      return 1.0;
+    }
+
+    @Override
+    public double getPolicyHalfRangeY() {
+      return 1.0;
+    }
+
+    @Override
+    public double getPolicySpeedScale() {
+      return 1.0;
+    }
   }
 
   private static final class ObservationBackend
@@ -975,6 +1352,31 @@ public class ProblemRacingTest {
     public boolean isInsideTrack( double x,
                                   double y ) {
       return true;
+    }
+
+    @Override
+    public double getPolicyCenterX() {
+      return 0.0;
+    }
+
+    @Override
+    public double getPolicyCenterY() {
+      return 0.0;
+    }
+
+    @Override
+    public double getPolicyHalfRangeX() {
+      return 1.0;
+    }
+
+    @Override
+    public double getPolicyHalfRangeY() {
+      return 1.0;
+    }
+
+    @Override
+    public double getPolicySpeedScale() {
+      return 1.0;
     }
   }
 }
