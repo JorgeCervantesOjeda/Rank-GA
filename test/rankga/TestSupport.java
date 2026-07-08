@@ -1,3 +1,5 @@
+// C:/Users/usuario/ownCloud2/RankGA/test/rankga/TestSupport.java
+// Deterministic test stubs for the RankGA core.
 package rankga;
 
 import java.util.Random;
@@ -165,6 +167,60 @@ final class TestSupport {
   }
 
   /**
+   * Continuous gene with a deterministic value.
+   */
+  static final class PreciseGene
+    implements Gene {
+
+    private double value;
+
+    PreciseGene( double value ) {
+      this.value = value;
+    }
+
+    PreciseGene( PreciseGene other ) {
+      this.value = other.value;
+    }
+
+    @Override
+    public void setIntValue( int value ) {
+      this.value = value;
+    }
+
+    @Override
+    public void setDoubleValue( double value ) {
+      this.value = value;
+    }
+
+    @Override
+    public double getValue() {
+      return this.value;
+    }
+
+    @Override
+    public void mutate( double intensity ) {
+      // No-op: tests use this gene to isolate serialization behavior.
+    }
+
+    @Override
+    public double distanceTo( Gene other ) {
+      double delta = this.value - other.getValue();
+      return Math.abs( delta );
+    }
+
+    @Override
+    public int getNumValues() {
+      return -1;
+    }
+
+    @Override
+    public void setNumValues( int numValues ) {
+      // Continuous gene: no finite discrete domain to update.
+    }
+
+  }
+
+  /**
    * Random source with a scripted nextDouble() sequence.
    * <p>
    * Useful to force recombination decisions deterministically.
@@ -314,6 +370,35 @@ final class TestSupport {
     @Override
     public double getGoalFt() {
       return this.goalFt;
+    }
+
+  }
+
+  /**
+   * Constant-fitness problem whose genome contains a known non-integer double.
+   */
+  static final class PreciseProblem
+    extends ConstantProblem {
+
+    private final double geneValue;
+
+    PreciseProblem( String name,
+                    double geneValue ) {
+      super( name,
+             1.0,
+             1.0 );
+      this.geneValue = geneValue;
+    }
+
+    @Override
+    public Gene getNewGene( boolean randomize,
+                            Random r ) {
+      return new PreciseGene( this.geneValue );
+    }
+
+    @Override
+    public Gene getNewGene( Gene gene ) {
+      return new PreciseGene( (PreciseGene) gene );
     }
 
   }

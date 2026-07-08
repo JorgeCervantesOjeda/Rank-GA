@@ -1,3 +1,5 @@
+// C:/Users/usuario/ownCloud2/RankGA/test/rankga/RankGAAdaptiveTest.java
+// Integration tests for RankGA adaptation and run artifact logging.
 package rankga;
 
 import java.io.ByteArrayOutputStream;
@@ -10,6 +12,7 @@ import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Stream;
 import org.junit.After;
 import org.junit.Test;
@@ -20,11 +23,14 @@ public class RankGAAdaptiveTest {
 
   private static final String PLAIN_PREFIX = "plain_stub_problem";
   private static final String ADAPTIVE_PREFIX = "adaptive_stub_problem";
+  private static final String PRECISE_PREFIX = "precise_stub_problem";
+  private static final int COUNT_OF_INDIVIDUALS = 20;
 
   @After
   public void cleanGeneratedLogs() throws IOException {
     deleteRunArtifactsWithPrefix( PLAIN_PREFIX );
     deleteRunArtifactsWithPrefix( ADAPTIVE_PREFIX );
+    deleteRunArtifactsWithPrefix( PRECISE_PREFIX );
   }
 
   @Test
@@ -35,7 +41,7 @@ public class RankGAAdaptiveTest {
       1.0 );
 
     runQuietly( () -> RankGA.run( problem,
-                                  3,
+                                  COUNT_OF_INDIVIDUALS,
                                   1,
                                   1234L ) );
   }
@@ -49,7 +55,7 @@ public class RankGAAdaptiveTest {
                                                1.0 );
 
     runQuietly( () -> RankGA.run( problem,
-                                  3,
+                                  COUNT_OF_INDIVIDUALS,
                                   1,
                                   1234L ) );
 
@@ -65,7 +71,7 @@ public class RankGAAdaptiveTest {
                                                1.0 );
 
     runQuietly( () -> RankGA.run( problem,
-                                  3,
+                                  COUNT_OF_INDIVIDUALS,
                                   1,
                                   1234L,
                                   "mode=adaptive;goal=1.0",
@@ -87,7 +93,7 @@ public class RankGAAdaptiveTest {
       "repetition,repetition_seed,evaluations,best_fitness,elapsed_ms,termination_reason" ) );
     assertTrue( lines.get( 1 ).contains( ",1234," ) );
     assertTrue( lines.get( 1 ).contains( "\"goal\"" ) );
-    assertEquals( "3",
+    assertEquals( Integer.toString( COUNT_OF_INDIVIDUALS ),
                   splitCsvLine( lines.get( 1 ) ).get( 2 ) );
     assertTrue( metadataLines.contains( "\"algorithm\",\"RankGA\"" ) );
     assertTrue( metadataLines.contains(
@@ -95,12 +101,52 @@ public class RankGAAdaptiveTest {
     assertTrue( metadataLines.contains(
       "\"problem_parameters\",\"mode=adaptive;goal=1.0\"" ) );
     assertTrue( metadataLines.contains( "\"base_seed\",\"'1234\"" ) );
-    assertTrue( metadataLines.contains( "\"population_size\",3" ) );
+    assertTrue( metadataLines.contains(
+      "\"population_size\"," + COUNT_OF_INDIVIDUALS ) );
+    assertTrue( metadataLines.contains( "\"genome_length\",1" ) );
     assertTrue( metadataLines.contains( "\"patience_ms\",60000" ) );
     assertTrue( metadataLines.contains(
       "\"incumbent_update_policy\",\"strict\"" ) );
     assertTrue( metadataLines.contains(
       "\"patience_reset_policy\",\"fitness\"" ) );
+  }
+
+  @Test
+  public void populationStartupReportsLocalAndGlobalSearchIntensities()
+    throws Exception {
+    TestSupport.ConstantProblem problem = new TestSupport.ConstantProblem(
+      PLAIN_PREFIX,
+      1.0,
+      1.0 );
+
+    String output = captureStdout( () -> new Population( COUNT_OF_INDIVIDUALS,
+                                                         problem,
+                                                         true,
+                                                         new Random( 1234L ) ) );
+
+    assertTrue( output.contains( "Local Search Intensity (L) = 0.5" ) );
+    assertTrue( output.contains( "Global Search Intensity (G) = 1.0" ) );
+    assertTrue( output.contains( "Mutation Exponent (beta) =" ) );
+  }
+
+  @Test
+  public void runStartupReportsGenomeLength()
+    throws Exception {
+    TestSupport.ConstantProblem problem = new TestSupport.ConstantProblem(
+      PLAIN_PREFIX,
+      1.0,
+      1.0 );
+
+    String output = captureStdout( () -> RankGA.run( problem,
+                                                     COUNT_OF_INDIVIDUALS,
+                                                     1,
+                                                     1234L,
+                                                     "mode=plain",
+                                                     60000L,
+                                                     RankGA.IncumbentUpdatePolicy.STRICT,
+                                                     RankGA.PatienceResetPolicy.FITNESS ) );
+
+    assertTrue( output.contains( "Genome Length: 1" ) );
   }
 
   @Test
@@ -111,7 +157,7 @@ public class RankGAAdaptiveTest {
                                                1.0 );
 
     runQuietly( () -> RankGA.run( problem,
-                                  3,
+                                  COUNT_OF_INDIVIDUALS,
                                   1,
                                   1234L,
                                   "mode=adaptive;goal=1.0",
@@ -127,19 +173,60 @@ public class RankGAAdaptiveTest {
                                                    "output_prefix" ) );
 
     List<String> runLines = Files.readAllLines( Paths.get( runPrefix.toString()
-                                                           + ".txt" ),
+                                                           + ".csv" ),
                                                 StandardCharsets.UTF_8 );
-    assertEquals( "t\tni\trep\tg\ts\tph\td\trank\tp\tfitness\textra\tgenes\tDateTime\tmil",
+    assertEquals( "t, ni, rep, g, s, evaluations, evalsPerSecond, ph, d, rank, mutationIntensity, fitness, extra, genes, DateTime, mil",
                   runLines.get( 0 ) );
 
     List<String> populationLines = Files.readAllLines(
-      Paths.get( runPrefix.toString() + "_0.txt" ),
+      Paths.get( runPrefix.toString() + "_0.csv" ),
       StandardCharsets.UTF_8 );
-    assertEquals( "rank\tmutationIntensity\tfitness\textra\tgenes",
+    assertEquals( "rank, mutationIntensity, fitness, extra, genes",
                   populationLines.get( 0 ) );
   }
 
+  @Test
+  public void populationLogUsesFullPrecisionGenesOnlyThere()
+    throws Exception {
+    TestSupport.PreciseProblem problem =
+      new TestSupport.PreciseProblem( PRECISE_PREFIX,
+                                      Math.PI );
+
+    runQuietly( () -> RankGA.run( problem,
+                                  COUNT_OF_INDIVIDUALS,
+                                  1,
+                                  1234L,
+                                  "mode=precise",
+                                  60000L,
+                                  RankGA.IncumbentUpdatePolicy.STRICT,
+                                  RankGA.PatienceResetPolicy.FITNESS ) );
+
+    Path summaryFile = findSummaryFile( PRECISE_PREFIX,
+                                        1234L );
+    Path runPrefix = Paths.get( readMetadataValue( metadataFileFor( summaryFile ),
+                                                   "output_prefix" ) );
+
+    List<String> runLines = Files.readAllLines( Paths.get( runPrefix.toString()
+                                                           + ".csv" ),
+                                                StandardCharsets.UTF_8 );
+    List<String> populationLines = Files.readAllLines(
+      Paths.get( runPrefix.toString() + "_0.csv" ),
+      StandardCharsets.UTF_8 );
+
+    assertTrue( runLines.stream().anyMatch( line -> line.contains(
+      "3.14e+00" ) ) );
+    assertTrue( populationLines.stream().anyMatch( line -> line.contains(
+      "3.141592653589793" ) ) );
+    assertTrue( populationLines.stream().noneMatch( line -> line.contains(
+      "3.14e+00" ) ) );
+  }
+
   private static void runQuietly( ThrowingRunnable action ) throws Exception {
+    captureStdout( action );
+  }
+
+  private static String captureStdout( ThrowingRunnable action )
+    throws Exception {
     PrintStream originalOut = System.out;
     ByteArrayOutputStream sink = new ByteArrayOutputStream();
     try( PrintStream muted = new PrintStream( sink ) ) {
@@ -148,6 +235,7 @@ public class RankGAAdaptiveTest {
     } finally {
       System.setOut( originalOut );
     }
+    return sink.toString();
   }
 
   private static void deleteRunArtifactsWithPrefix( String prefix )

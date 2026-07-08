@@ -1,3 +1,5 @@
+// C:/Users/usuario/ownCloud2/RankGA/src/rankga/Individual.java
+// Candidate solution representation and genome serialization helpers.
 package rankga;
 
 import java.util.Random;
@@ -194,6 +196,10 @@ public class Individual {
     return fitness;
   }
 
+  public void setFitness( double fitness ) {
+    this.fitness = fitness;
+  }
+
   // --------------------------------------------------------------------------------------------
   // Mutation & Recombination
   // --------------------------------------------------------------------------------------------
@@ -270,6 +276,27 @@ public class Individual {
                        : String.format( "%.2e",
                                         value );        // floating-point
       genomeString.append( geneStr );
+    }
+    return genomeString.toString();
+  }
+
+  /**
+   * Lossless genome serialization for full population dumps.
+   * <p>
+   * Each gene is separated by one space and printed with
+   * {@link Double#toString(double)}, which preserves enough digits for exact
+   * {@code double} round-tripping. The display modulus is intentionally not
+   * used here because this format is for machine-readable reconstruction, not
+   * compact progress monitoring.
+   * </p>
+   */
+  public String fullPrecisionGenomeStr() {
+    StringBuilder genomeString = new StringBuilder();
+    for( int i = 0; i < genome.length; i++ ) {
+      if( i != 0 ) {
+        genomeString.append( " " );
+      }
+      genomeString.append( Double.toString( genome[ i ].getValue() ) );
     }
     return genomeString.toString();
   }

@@ -58,8 +58,8 @@ RankGA es un algoritmo gen\'etico con cuatro rasgos estructurales centrales:
 
   \item \textbf{Mutaci\'on dependiente del rango.}
   La intensidad de mutaci\'on no es uniforme en toda la poblaci\'on. Los
-  individuos mejor rankeados reciben menos perturbaci\'on y los peor rankeados
-  reciben m\'as.
+  individuos ubicados al inicio de la poblaci\'on ordenada por fitness reciben
+  menos perturbaci\'on y los ubicados al final reciben m\'as.
 
   \item \textbf{Emparejamiento por rango para recombinaci\'on.}
   La recombinaci\'on no empareja individuos al azar. Despu\'es de ordenar la
@@ -151,7 +151,7 @@ Todo problema debe proveer:
   \texttt{getGlobalSearchIntensity()}.
 \end{itemize}
 
-\subsection{Interpretaci\'on de las intensidades \(L\) y \(G\)}
+\subsection{Interpretaci\'on de las intensidades L y G}
 
 El problema define dos par\'ametros:
 
@@ -163,8 +163,9 @@ El problema define dos par\'ametros:
 En el framework actual:
 
 \begin{itemize}
-  \item \(G\) es la intensidad m\'axima asignable, t\'ipicamente asociada a los
-  peores rangos;
+  \item \(G\) es la intensidad m\'axima asignable y se aplica al individuo de
+  peor fitness, que queda al final de la poblaci\'on ordenada y tiene rango
+  normalizado \(r=1\);
   \item \(L\) se usa para calibrar la pendiente del perfil de mutaci\'on.
 \end{itemize}
 
@@ -184,14 +185,19 @@ G = 1 - \frac{1}{\texttt{numValues}}.
 \]
 La raz\'on es que, si un valor se remuestrea uniformemente entre
 \(\texttt{numValues}\) posibilidades, la probabilidad de que el valor resultante
-sea distinto del valor actual es \(1 - 1/\texttt{numValues}\). El caso binario
-es el caso particular \(\texttt{numValues}=2\), por lo que
+sea distinto del valor actual es \(1 - 1/\texttt{numValues}\). En
+\texttt{GeneInteger}, la mutaci\'on se implementa de forma equivalente para esta
+calibraci\'on: con probabilidad \(G\) se elige uniformemente un valor distinto
+del actual, y con probabilidad \(1-G\) se conserva el valor actual. Si
+\(G=1-1/\texttt{numValues}\), el valor actual y cada valor alternativo quedan
+con probabilidad final \(1/\texttt{numValues}\). El caso binario es el caso
+particular \(\texttt{numValues}=2\), por lo que
 \[
 G = 1 - \frac{1}{2} = 0.5.
 \]
-En una cadena binaria, mutar cada bit con intensidad \(G=0.5\) hace que cada
-cadena binaria tenga la misma probabilidad de aparecer. Para una cadena de
-longitud \(n\), cualquier cadena espec\'ifica tiene probabilidad
+En una cadena binaria, si cada locus muta de forma independiente con intensidad
+\(G=0.5\), cada cadena binaria tiene la misma probabilidad de aparecer. Para
+una cadena de longitud \(n\), cualquier cadena espec\'ifica tiene probabilidad
 \[
 \left(\frac{1}{2}\right)^n.
 \]
@@ -259,7 +265,9 @@ del espacio de b\'usqueda?''. \(L\) responde: ``\textquestiondown cu\'al es el
 menor cambio que todav\'ia vale la pena evaluar?''.
 
 El supuesto matem\'atico deseado es \(G > L\), porque entonces el exponente de
-mutaci\'on resulta positivo y la mutaci\'on crece con el rango.
+mutaci\'on resulta positivo y la mutaci\'on crece conforme aumenta el rango
+normalizado \(r_i\), es decir, conforme se avanza desde el mejor individuo hacia
+el peor en la poblaci\'on ordenada por fitness.
 
 \section{Representaci\'on de individuos y genes}
 
@@ -382,6 +390,13 @@ donde:
   \item \(i=N-1\) corresponde al peor;
   \item por lo tanto \(r_i \in [0,1]\).
 \end{itemize}
+
+En este documento, cuando se diga que un individuo est\'a ``arriba'' de la
+poblaci\'on ordenada, significa que tiene mejor fitness y un rango normalizado
+cercano a \(0\). Cuando se diga que est\'a ``abajo'', significa que tiene peor
+fitness y un rango normalizado cercano a \(1\). Por tanto, un valor mayor de
+\(r_i\) no significa ``mejor rango'', sino peor posici\'on relativa dentro de la
+poblaci\'on ordenada.
 
 En la implementaci\'on que este documento describe, la definici\'on correcta es
 \(r_i = i/(N-1)\).
@@ -528,11 +543,13 @@ Formalmente, si \(x_j\) y \(y_j\) son los genes de dos padres, entonces:
 
 \subsection{Idea central}
 
-La mutaci\'on no es plana. La intensi\'on del dise\~no es:
+La mutaci\'on no es plana. La intenci\'on del dise\~no es:
 
 \begin{itemize}
-  \item preservar m\'as a los individuos bien rankeados;
-  \item perturbar m\'as a los individuos peor rankeados;
+  \item preservar m\'as a los individuos ubicados arriba de la poblaci\'on
+  ordenada, es decir, con mejor fitness y \(r_i\) cercano a \(0\);
+  \item perturbar m\'as a los individuos ubicados abajo, es decir, con peor
+  fitness y \(r_i\) cercano a \(1\);
   \item hacer coexistir explotaci\'on cerca del frente y exploraci\'on en la
   cola de la poblaci\'on.
 \end{itemize}
@@ -567,7 +584,7 @@ De aqu\'i se sigue que:
   \]
   \item para el peor individuo, \(r_{N-1}=1\) y por tanto
   \(I_{N-1}=G\);
-  \item la intensidad crece mon\'otonamente con el rango si \(\beta>0\).
+  \item la intensidad crece mon\'otonamente con \(r_i\) si \(\beta>0\).
 \end{itemize}
 
 Ese detalle no es accidental. La forma en que se define \(\beta\) hace que el
@@ -786,31 +803,39 @@ soluci\'on objetivo ya aparece desde el principio.
 Por cada corrida se generan:
 
 \begin{itemize}
-  \item un archivo \texttt{.txt} con snapshots cronol\'ogicos del mejor
+  \item un archivo \texttt{.csv} con snapshots cronol\'ogicos del mejor
   individuo;
-  \item un archivo \texttt{\_rep.txt} por repetici\'on con el \'ultimo estado de
+  \item un archivo \texttt{\_rep.csv} por repetici\'on con el \'ultimo estado de
   la poblaci\'on en esa repetici\'on.
 \end{itemize}
 
 \subsection{Resumen estructurado}
 
-Tambi\'en se genera un \texttt{summary.csv} con una fila por repetici\'on. Entre
-sus columnas est\'an:
+Tambi\'en se genera un \texttt{summary.csv} con una fila por repetici\'on. Sus
+columnas son:
+
+\begin{itemize}
+  \item \'indice de repetici\'on;
+  \item semilla efectiva de la repetici\'on;
+  \item n\'umero de evaluaciones;
+  \item mejor fitness final;
+  \item tiempo transcurrido en milisegundos;
+  \item raz\'on de terminaci\'on.
+\end{itemize}
+
+La informaci\'on que no cambia por repetici\'on se escribe en el archivo de
+metadata asociado, \texttt{\_summary\_meta.csv}. Ah\'i quedan, entre otros:
 
 \begin{itemize}
   \item algoritmo;
   \item clase del problema;
   \item nombre del problema;
   \item par\'ametros efectivos del problema;
-  \item semilla;
+  \item semilla base;
   \item \texttt{run\_id};
-  \item \'indice de repetici\'on;
   \item tama\~no de poblaci\'on;
+  \item longitud del genoma;
   \item n\'umero total de repeticiones;
-  \item n\'umero de evaluaciones;
-  \item mejor fitness final;
-  \item tiempo transcurrido en milisegundos;
-  \item raz\'on de terminaci\'on;
   \item fitness objetivo;
   \item paciencia configurada en milisegundos;
   \item pol\'itica de reemplazo del incumbente;
@@ -882,7 +907,8 @@ El algoritmo presupone:
 \begin{itemize}
   \item fitness orientado a maximizaci\'on;
   \item poblaciones de tama\~no al menos \(3\);
-  \item \(G > L\) para que la mutaci\'on dependa del rango de forma mon\'otona;
+  \item \(G > L\) para que la intensidad de mutaci\'on crezca de forma
+  mon\'otona con \(r_i\);
   \item una implementaci\'on consistente del operador de copia de genes;
   \item y una interpretaci\'on bien definida de intensidad dentro de cada tipo
   de gen.
@@ -900,9 +926,10 @@ El algoritmo presupone:
 \subsection{Limitaciones reales de implementaci\'on}
 
 \begin{itemize}
-  \item El motor usa estado est\'atico en \texttt{RankGA}, por lo que est\'a
-  dise\~nado como \emph{runner} simple, no como motor concurrente para varias
-  corridas simult\'aneas en la misma JVM.
+  \item El estado mutable de ejecuci\'on pertenece a una instancia de
+  \texttt{RankGA}. Las llamadas p\'ublicas de conveniencia siguen creando un
+  \emph{runner} simple por corrida, pero el estado ya no queda compartido como
+  estado est\'atico global.
   \item La generaci\'on autom\'atica de gr\'aficas depende de componentes
   externos disponibles en el entorno.
 \end{itemize}
@@ -948,7 +975,8 @@ RankGA puede resumirse como sigue:
   \item replica individuos seg\'un su rango, no seg\'un el valor crudo del
   fitness;
   \item cruza por parejas adyacentes;
-  \item muta con intensidad creciente conforme empeora el rango;
+  \item muta con intensidad creciente conforme aumenta \(r_i\), es decir,
+  conforme se avanza hacia individuos de peor fitness;
   \item preserva al mejor individuo porque su intensidad es cero;
   \item asigna al segundo mejor individuo exactamente la intensidad local
   \(L\);
@@ -963,7 +991,7 @@ contrato entre motor y genes debe estar especialmente bien cuidado. Cuando ese
 contrato se respeta, el comportamiento es razonable y reproducible; cuando se
 viola, incluso problemas muy f\'aciles pueden dar resultados enga\~nosos.
 
-\section{Explicaci\'on intuitiva de la din\'amica por rank}
+\section{Explicaci\'on intuitiva de la din\'amica por rango}
 
 Esta secci\'on no introduce nuevas ecuaciones ni sustituye la descripci\'on
 formal anterior. Su objetivo es ofrecer una \textbf{lectura operativa} de la
@@ -977,22 +1005,25 @@ demostraci\'on matem\'atica general de todas sus trayectorias posibles.
 
 Este algoritmo est\'a dise\~nado para que la poblaci\'on no reciba un
 tratamiento uniforme. No todos los individuos cumplen la misma funci\'on. La
-poblaci\'on se ordena por \emph{rank}, y ese rank determina el papel de cada
-individuo dentro de la b\'usqueda.
+poblaci\'on se ordena por fitness y a cada posici\'on se le asocia un rango
+normalizado \(r_i\). Ese rango determina el papel de cada individuo dentro de
+la b\'usqueda.
 
 La intuici\'on general es:
 
 \begin{itemize}
-  \item en la parte alta del rank se protege y se explota lo mejor encontrado;
-  \item al ir bajando en el rank, la b\'usqueda se vuelve cada vez m\'as amplia;
-  \item en la parte baja del rank se mantiene exploraci\'on fuerte y
-  permanente.
+  \item en la parte alta de la poblaci\'on ordenada, donde \(r_i\) es cercano a
+  \(0\), se protege y se explota lo mejor encontrado;
+  \item al avanzar hacia posiciones con \(r_i\) mayor, la b\'usqueda se vuelve
+  cada vez m\'as amplia;
+  \item en la parte baja de la poblaci\'on ordenada, donde \(r_i\) es cercano a
+  \(1\), se mantiene exploraci\'on fuerte y permanente.
 \end{itemize}
 
-As\'i, el rank no solo ordena por calidad. Tambi\'en organiza qu\'e tipo de
-b\'usqueda hace cada zona de la poblaci\'on.
+As\'i, el rango normalizado no solo resume la posici\'on por calidad. Tambi\'en
+organiza qu\'e tipo de b\'usqueda hace cada zona de la poblaci\'on.
 
-\subsection{Selecci\'on por clonaci\'on seg\'un rank}
+\subsection{Selecci\'on por clonaci\'on seg\'un rango}
 
 Antes de recombinar, el algoritmo aplica una selecci\'on por clonaci\'on. Los
 individuos mejores reciben m\'as copias y los peores menos. Esto introduce
@@ -1003,8 +1034,8 @@ reproductiva a los mejores sin destruir de golpe la diversidad de la
 poblaci\'on.
 
 Aqu\'i aparece un caso especialmente importante: \(S=3\). Con \(S=3\), el
-mejor individuo tiene conteo esperado de clones igual a \(3\), porque para el
-mejor rank se cumple \(r_0=0\) y por tanto:
+mejor individuo tiene conteo esperado de clones igual a \(3\), porque para la
+mejor posici\'on se cumple \(r_0=0\) y por tanto:
 \[
 c_0 = 3(1-r_0)^2 = 3.
 \]
@@ -1014,10 +1045,11 @@ representado varias veces en la parte alta de la poblaci\'on antes de
 recombinar. En la implementaci\'on actual, esa multiplicidad no es una regla de
 elitismo externa: emerge de la ley de clonaci\'on por rango.
 
-\subsection{Qu\'e implica \(S=3\) para la parte alta del rank}
+\subsection{Qu\'e implica S=3 para la parte alta}
 
 Cuando el mejor tiene tres copias y la poblaci\'on se vuelve a ordenar por
-rank, esas copias tienden a quedar al inicio.
+fitness, esas copias tienden a quedar al inicio, donde \(r_i\) es cercano a
+\(0\).
 
 Luego viene la recombinaci\'on por parejas adyacentes:
 
@@ -1033,8 +1065,9 @@ forzado como regla externa. La propia din\'amica del algoritmo preserva una
 se\~nal del mejor.
 
 Luego, el tercer clon del mejor se recombina con el que era el siguiente
-individuo en esa zona alta del rank. En situaciones t\'ipicas, eso coincide con
-un individuo muy bueno, a menudo el segundo mejor previo a la selecci\'on. La
+individuo en esa zona alta de la poblaci\'on ordenada. En situaciones t\'ipicas,
+eso coincide con un individuo muy bueno, a menudo el segundo mejor previo a la
+selecci\'on. La
 lectura funcional es razonable: una parte del mejor se preserva intacta y otra
 parte se usa para explotar localmente la regi\'on donde ya viven las mejores
 soluciones.
@@ -1072,7 +1105,7 @@ Eso importa porque, si dos individuos buenos comparten genes valiosos, esos
 genes comunes no se rompen. La recombinaci\'on solo act\'ua donde los padres
 difieren.
 
-Entonces, cuando se recombinan individuos de rank parecido, sobre todo
+Entonces, cuando se recombinan individuos de posici\'on parecida, sobre todo
 individuos buenos, lo normal es que:
 
 \begin{itemize}
@@ -1083,10 +1116,10 @@ individuos buenos, lo normal es que:
 Esa es una raz\'on importante por la que la recombinaci\'on entre individuos
 buenos resulta una estrategia coherente dentro del dise\~no.
 
-\subsection{Emparejamiento por rank}
+\subsection{Emparejamiento por rango}
 
-Los individuos no se recombinan al azar. Se recombinan con otros de rank
-parecido.
+Los individuos no se recombinan al azar. Se recombinan con otros de posici\'on
+parecida en la poblaci\'on ordenada.
 
 Esto tambi\'en est\'a dise\~nado a prop\'osito:
 
@@ -1107,10 +1140,10 @@ En cambio:
   \item malos con malos favorece exploraci\'on amplia.
 \end{itemize}
 
-As\'i, el emparejamiento por rank protege a la \'elite y, al mismo tiempo,
+As\'i, el emparejamiento por rango protege a la \'elite y, al mismo tiempo,
 deja a la parte baja de la poblaci\'on funcionando como zona de exploraci\'on.
 
-\subsection{Qu\'e pasa despu\'es: mutaci\'on seg\'un rank}
+\subsection{Qu\'e pasa despu\'es: mutaci\'on seg\'un rango}
 
 Despu\'es de recombinar, se aplica mutaci\'on, pero la intensidad no es la
 misma para todos.
@@ -1133,7 +1166,7 @@ Eso fija tres comportamientos clave:
   gen concreto.
 \end{itemize}
 
-\subsection{Qu\'e significa que el segundo reciba \(L\)}
+\subsection{Qu\'e significa que el segundo reciba L}
 
 Aqu\'i vuelve a conectar el caso \(S=3\).
 
@@ -1155,18 +1188,20 @@ Es una parte especialmente elegante del algoritmo:
 
 \begin{itemize}
   \item una copia del mejor queda intacta;
-  \item otra copia del mejor queda arriba en el rank;
+  \item otra copia del mejor queda arriba en la poblaci\'on ordenada;
   \item y esa copia recibe una mutaci\'on peque\~na que explora localmente.
 \end{itemize}
 
 Por tanto, no solo se protege al mejor: tambi\'en se explora de manera fina
 alrededor de \'el.
 
-\subsection{Qu\'e ocurre al bajar en el rank}
+\subsection{Qu\'e ocurre al avanzar hacia rangos normalizados mayores}
 
-La din\'amica cambia gradualmente al ir hacia peores ranks.
+La din\'amica cambia gradualmente al avanzar desde \(r_i\) cercano a \(0\)
+hacia \(r_i\) cercano a \(1\). Dicho de otra forma: cambia al pasar de los
+individuos de mejor fitness a los de peor fitness.
 
-En la parte alta del rank:
+En la parte alta de la poblaci\'on ordenada:
 
 \begin{itemize}
   \item los individuos se parecen mucho entre s\'i;
@@ -1186,8 +1221,8 @@ M\'as abajo:
   \item la mutaci\'on tambi\'en es cada vez mayor.
 \end{itemize}
 
-Por tanto, al bajar en el rank la b\'usqueda se va haciendo cada vez m\'as
-amplia.
+Por tanto, al avanzar hacia \(r_i\) mayores, la b\'usqueda se va haciendo cada
+vez m\'as amplia.
 
 Eso significa que el algoritmo no separa bruscamente ``explotaci\'on'' y
 ``exploraci\'on''. Lo que hace es una \textbf{transici\'on gradual} desde una a
@@ -1204,9 +1239,9 @@ individuos lejanos y exploratorios.
 Eso mantiene diversidad gen\'etica de forma permanente mientras la corrida siga
 activa.
 
-Entonces, la parte baja del rank funciona como una zona de exploraci\'on
-amplia. All\'i aparecen nuevas combinaciones y nuevas mutaciones que pueden
-alejarse bastante de lo ya consolidado en la \'elite.
+Entonces, la parte baja de la poblaci\'on ordenada funciona como una zona de
+exploraci\'on amplia. All\'i aparecen nuevas combinaciones y nuevas mutaciones
+que pueden alejarse bastante de lo ya consolidado en la \'elite.
 
 \subsection{Qu\'e pasa si un individuo exploratorio resulta bueno}
 
@@ -1219,10 +1254,10 @@ Puede ocurrir que un individuo proveniente de esa zona exploratoria:
 \end{itemize}
 
 Cuando eso ocurre, no hace falta introducir una regla especial para
-``rescatarlo''. Basta con volver a ordenar por rank.
+``rescatarlo''. Basta con volver a ordenar por fitness.
 
-Su nuevo rank determina con qui\'en se recombina a continuaci\'on. Si ahora es
-bueno, pasar\'a a recombinarse con otros buenos.
+Su nueva posici\'on y su nuevo \(r_i\) determinan con qui\'en se recombina a
+continuaci\'on. Si ahora es bueno, pasar\'a a recombinarse con otros buenos.
 
 Eso es importante porque un individuo lejano puede resultar bueno por varias
 razones:
@@ -1233,8 +1268,9 @@ razones:
   \item o por una combinaci\'on de ambas cosas.
 \end{itemize}
 
-Sea cual sea el caso, si sube en el rank, el algoritmo empieza a tratarlo como
-un individuo bueno. Esa es una propiedad fuerte del dise\~no.
+Sea cual sea el caso, si sube hacia la parte alta de la poblaci\'on ordenada, el
+algoritmo empieza a tratarlo como un individuo bueno. Esa es una propiedad
+fuerte del dise\~no.
 
 \subsection{Por qu\'e los exploratorios no deben recombinarse con los mejores
 mientras sigan siendo malos}
@@ -1245,7 +1281,7 @@ peores que sobrevivieron, entonces debe seguir recombin\'andose con los peores.
 No debe recombinarse con los mejores porque, en ese caso, lo normal es que
 destruya parte de los buenos genes del bueno.
 
-Por eso el emparejamiento por rank no es un detalle accesorio. Es una parte
+Por eso el emparejamiento por rango no es un detalle accesorio. Es una parte
 central de la protecci\'on del material gen\'etico valioso.
 
 \subsection{Qu\'e tipo de b\'usqueda implementa el algoritmo}
@@ -1253,7 +1289,7 @@ central de la protecci\'on del material gen\'etico valioso.
 Visto globalmente, el algoritmo organiza la poblaci\'on en franjas
 funcionales.
 
-Arriba del rank:
+Arriba de la poblaci\'on ordenada:
 
 \begin{itemize}
   \item preservaci\'on;
@@ -1270,7 +1306,7 @@ En la zona media:
   \item exploraci\'on intermedia.
 \end{itemize}
 
-Abajo del rank:
+Abajo de la poblaci\'on ordenada:
 
 \begin{itemize}
   \item recombinaci\'on entre individuos muy distintos;
@@ -1286,8 +1322,8 @@ tiempo.
 Aqu\'i conviene usar una definici\'on precisa. Si por convergencia se entiende
 p\'erdida irreversible de diversidad gen\'etica tal que el algoritmo ya no pueda
 volver a generar variantes lejanas, entonces la din\'amica actual no est\'a
-dise\~nada para empujar fuertemente a ese escenario, porque la parte baja del
-rank sigue introduciendo diversidad de manera persistente:
+dise\~nada para empujar fuertemente a ese escenario, porque la parte baja de la
+poblaci\'on ordenada sigue introduciendo diversidad de manera persistente:
 
 \begin{itemize}
   \item por recombinaci\'on entre individuos lejanos;
@@ -1310,7 +1346,8 @@ que, por el momento, esa sigue siendo la mejor regi\'on encontrada.
 
 Mientras la parte baja siga generando diversidad y exploraci\'on amplia, sigue
 existiendo la posibilidad de descubrir otra regi\'on mejor. Si eso ocurre, esa
-novedad puede ir subiendo en el rank y desplazar a la \'elite actual.
+novedad puede subir hacia la parte alta de la poblaci\'on ordenada y desplazar a
+la \'elite actual.
 
 \subsection{Resumen intuitivo final}
 
@@ -1320,12 +1357,12 @@ La din\'amica completa del algoritmo puede entenderse as\'i:
   \item la selecci\'on por clonaci\'on da m\'as representaci\'on a los mejores;
   \item con \(S=3\), el mejor queda autom\'aticamente protegido sin elitismo
   forzado;
-  \item la recombinaci\'on por rank hace que los mejores cooperen con mejores y
+  \item la recombinaci\'on por rango hace que los mejores cooperen con mejores y
   los peores con peores;
   \item la recombinaci\'on uniforme protege los alelos comunes entre padres;
-  \item la mutaci\'on seg\'un rank hace que arriba haya b\'usqueda local y abajo
+  \item la mutaci\'on seg\'un rango hace que arriba haya b\'usqueda local y abajo
   b\'usqueda amplia;
-  \item si aparece un individuo exploratorio bueno, su nuevo rank lo
+  \item si aparece un individuo exploratorio bueno, su nueva posici\'on lo
   reposiciona autom\'aticamente;
   \item la parte baja de la poblaci\'on mantiene diversidad gen\'etica de forma
   persistente.
@@ -1334,6 +1371,6 @@ La din\'amica completa del algoritmo puede entenderse as\'i:
 En pocas palabras: el algoritmo est\'a dise\~nado para que la parte alta de la
 poblaci\'on refine lo mejor encontrado, mientras la parte baja sigue buscando
 lejos, y ambas zonas queden conectadas por una transici\'on gradual gobernada
-por el rank.
+por el rango normalizado.
 
 \end{document}
