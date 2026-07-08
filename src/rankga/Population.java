@@ -325,7 +325,7 @@ public class Population {
         "Recalculating mutation exponent (beta): " + this.mutationExponent
         + " -> " + newMutationExponent );
       // Update the mutation exponent.
-      this.mutationExponent = newMutationExponent; 
+      this.mutationExponent = newMutationExponent;
     }
   }
 
